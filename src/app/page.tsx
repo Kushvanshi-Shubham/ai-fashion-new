@@ -1,103 +1,368 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Sparkles, Zap, Shield, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
+import { Category } from '@/types'
+import CategoryCard from '@/components/CategoryCard'
+import ImageUpload from '@/components/ImageUpload'
+import ExtractionResults from '@/components/ExtractionResults'
+import { useExtractionStore } from '@/store/useExtractionStore'
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function HomePage() {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showDemo, setShowDemo] = useState(false)
+
+  const {
+    selectedCategory,
+    uploadedImages,
+    results,
+    isProcessing,
+    currentProgress,
+    error,
+    setCategory,
+    addImages,
+    clearImages,
+    startExtraction,
+    setError
+  } = useExtractionStore()
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories')
+      const result = await response.json()
+      
+      if (result.success) {
+        setCategories(result.data)
+      } else {
+        setError('Failed to load categories')
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error)
+      setError('Failed to connect to server')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleImageUpload = (files: File[]) => {
+    addImages(files)
+    setError(undefined)
+  }
+
+  const handleCategorySelect = (category: Category) => {
+    setCategory(selectedCategory?.id === category.id ? undefined : category)
+    setError(undefined)
+  }
+
+  const handleStartExtraction = async () => {
+    if (!selectedCategory) {
+      setError('Please select a category first')
+      return
+    }
+
+    if (uploadedImages.length === 0) {
+      setError('Please upload at least one image')
+      return
+    }
+
+    // Process first image for demo
+    const firstImage = uploadedImages[0]
+    await startExtraction(firstImage.id)
+  }
+
+  const handleClearAll = () => {
+    clearImages()
+    setCategory(undefined)
+    setError(undefined)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-xl font-medium text-gray-700 dark:text-gray-300">Loading...</div>
         </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  AI Fashion Extractor
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Extract fashion attributes with AI precision
+                </p>
+              </div>
+            </div>
+            
+            <nav className="flex items-center space-x-4">
+              <Link
+                href="/admin"
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
+              >
+                Admin
+              </Link>
+              <Link
+                href="/analytics"
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
+              >
+                Analytics
+              </Link>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+            AI-Powered Fashion Analysis
+          </h2>
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8">
+            Upload fashion images and let our advanced AI extract detailed attributes 
+            like color, material, style, and more with industry-leading accuracy.
+          </p>
+          
+          {/* Feature Pills */}
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
+            <div className="flex items-center px-4 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-sm font-medium">
+              <Zap className="w-4 h-4 mr-2" />
+              3s Processing
+            </div>
+            <div className="flex items-center px-4 py-2 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-sm font-medium">
+              <Shield className="w-4 h-4 mr-2" />
+              95%+ Accuracy
+            </div>
+            <div className="flex items-center px-4 py-2 bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full text-sm font-medium">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Advanced AI
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Error Display */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+            >
+              <p className="text-red-800 dark:text-red-300 font-medium">{error}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Upload Section */}
+        <motion.section
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-8 border border-gray-200 dark:border-gray-700"
+        >
+          <div className="mb-6">
+            <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+              Upload Fashion Images
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300">
+              Drag and drop or click to upload images of clothing items for AI analysis
+            </p>
+          </div>
+          
+          <ImageUpload
+            onUpload={handleImageUpload}
+            maxFiles={5}
+            disabled={isProcessing}
+          />
+        </motion.section>
+
+        {/* Category Selection */}
+        {uploadedImages.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-8 border border-gray-200 dark:border-gray-700"
+          >
+            <div className="mb-6">
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                Select Category
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300">
+                Choose the category that best describes your uploaded items
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {categories.map((category) => (
+                <CategoryCard
+                  key={category.id}
+                  category={category}
+                  isSelected={selectedCategory?.id === category.id}
+                  onSelect={handleCategorySelect}
+                />
+              ))}
+            </div>
+          </motion.section>
+        )}
+
+        {/* Action Buttons */}
+        {uploadedImages.length > 0 && selectedCategory && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="text-center mb-8"
+          >
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button
+                onClick={handleStartExtraction}
+                disabled={isProcessing}
+                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-lg text-lg shadow-lg hover:shadow-xl transition-all duration-200 disabled:cursor-not-allowed min-w-[200px]"
+              >
+                {isProcessing ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Processing...
+                  </div>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 inline mr-2" />
+                    Start AI Extraction
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={handleClearAll}
+                disabled={isProcessing}
+                className="px-6 py-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Clear All
+              </button>
+            </div>
+          </motion.section>
+        )}
+
+        {/* Processing Progress */}
+        <AnimatePresence>
+          {currentProgress && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-8 border border-gray-200 dark:border-gray-700"
+            >
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  {currentProgress.currentStep}
+                </h3>
+                
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-4">
+                  <motion.div
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${currentProgress.progress}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+                
+                <p className="text-gray-600 dark:text-gray-300">
+                  {currentProgress.progress}% Complete
+                  {currentProgress.estimatedTime && currentProgress.progress < 100 && (
+                    <span className="ml-2">
+                      • Est. {Math.ceil((currentProgress.estimatedTime * (100 - currentProgress.progress)) / 100 / 1000)}s remaining
+                    </span>
+                  )}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Results */}
+        <AnimatePresence>
+          {results.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="text-center">
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Extraction Results
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  AI-powered attribute extraction completed successfully
+                </p>
+              </div>
+
+              {results.slice(-3).reverse().map((result) => (
+                <ExtractionResults
+                  key={result.id}
+                  result={result}
+                  onDownload={(result) => {
+                    const dataStr = JSON.stringify(result, null, 2)
+                    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+                    const url = URL.createObjectURL(dataBlob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = `extraction-${result.id}.json`
+                    link.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                />
+              ))}
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {/* Demo Mode Toggle */}
+        {!showDemo && results.length === 0 && !isProcessing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="text-center py-12"
+          >
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              Want to see how it works? Try our demo with sample images.
+            </p>
+            <button
+              onClick={() => setShowDemo(true)}
+              className="px-6 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors"
+            >
+              View Demo
+            </button>
+          </motion.div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
-  );
+  )
 }

@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  parentId    String?
+  
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  attributes  Attribute[]
+  extractions Extraction[]
+  
+  aiPromptTemplate String  @default("")
+  isActive         Boolean @default(true)
+  sortOrder        Int     @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("categories")
+}
+
+model Attribute {
+  id    String        @id @default(uuid())
+  key   String
+  label String
+  type  AttributeType
+  
+  required Boolean @default(false)
+  options  Json?
+  
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  
+  aiExtractable Boolean @default(true)
+  aiWeight      Float   @default(1.0)
+  aiPromptHint  String?
+  
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([categoryId, key])
+  @@map("attributes")
+}
+
+model Extraction {
+  id String @id @default(uuid())
+  
+  imageUrl      String
+  imageMetadata Json
+  
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  
+  extractedData Json
+  confidence    Float @default(0)
+  
+  aiModel       String @default("")
+  promptVersion String @default("v1.0")
+  
+  processingTime Int @default(0)
+  tokenUsage     Int @default(0)
+  cost          Float @default(0)
+  
+  status       ExtractionStatus @default(PROCESSING)
+  errorMessage String?
+  
+  userId    String?
+  sessionId String @default("")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("extractions")
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  BOOLEAN
+  RANGE
+  COLOR
+  URL
+  DATE
+}
+
+enum ExtractionStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+  CACHED
+}
