@@ -1,133 +1,59 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/database'
-import { z } from 'zod'
-
-const createCategorySchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  attributes: z.array(z.object({
-    key: z.string().min(1, 'Attribute key is required'),
-    label: z.string().min(1, 'Attribute label is required'),
-    type: z.enum(['TEXT', 'NUMBER', 'SELECT', 'MULTI_SELECT', 'BOOLEAN', 'RANGE', 'COLOR', 'URL', 'DATE']),
-    required: z.boolean().default(false),
-    options: z.array(z.object({
-      value: z.string(),
-      label: z.string(),
-      description: z.string().optional()
-    })).optional(),
-    aiExtractable: z.boolean().default(true),
-    aiWeight: z.number().min(0).max(1).default(1.0),
-    aiPromptHint: z.string().optional()
-  })).default([])
-})
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const categories = await prisma.category.findMany({
-      where: { isActive: true },
-      include: {
-        attributes: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' }
-        },
-        _count: {
-          select: { extractions: true }
-        }
-      },
-      orderBy: { sortOrder: 'asc' }
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: categories,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: crypto.randomUUID(),
-        total: categories.length
+    // Import your data files directly - no database needed!
+    const { CATEGORY_DEFINITIONS } = await import('../../../data/categoryDefinitions')
+    const { MASTER_ATTRIBUTES } = await import('../../../data/masterAttributes')
+    
+    console.log(`📊 Loaded ${CATEGORY_DEFINITIONS.length} categories from JSON`)
+    
+    // Format for frontend (limit to first 50 for performance)
+    const formattedCategories = CATEGORY_DEFINITIONS.slice(0, 50).map((cat: any) => {
+      // Count enabled attributes
+      const enabledCount = Object.values(cat.attributes).filter(Boolean).length
+      const totalCount = Object.keys(cat.attributes).length
+      
+      return {
+        id: cat.id,
+        name: cat.displayName,
+        description: cat.description || `${cat.department} ${cat.subDepartment} category`,
+        department: cat.department,
+        subDepartment: cat.subDepartment,
+        isActive: cat.isActive,
+        enabledAttributes: enabledCount,
+        totalAttributes: totalCount,
+        // Add some metadata for UI
+        category: cat.category,
+        createdAt: cat.createdAt || new Date().toISOString()
       }
     })
+    
+    // Group by department for better UX
+    const groupedData = {
+      categories: formattedCategories,
+      summary: {
+        total: formattedCategories.length,
+        byDepartment: {
+          KIDS: formattedCategories.filter(c => c.department === 'KIDS').length,
+          MENS: formattedCategories.filter(c => c.department === 'MENS').length,
+          LADIES: formattedCategories.filter(c => c.department === 'LADIES').length
+        }
+      }
+    }
+    
+    return NextResponse.json({
+      success: true,
+      data: groupedData
+    })
+    
   } catch (error) {
     console.error('Categories API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Failed to fetch categories',
-        metadata: {
-          timestamp: new Date().toISOString(),
-          requestId: crypto.randomUUID()
-        }
-      },
-      { status: 500 }
-    )
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const validatedData = createCategorySchema.parse(body)
-    
-    const { name, description, attributes } = validatedData
-
-    const category = await prisma.category.create({
-      data: {
-        name,
-        description,
-        aiPromptTemplate: `Analyze this ${name.toLowerCase()} image and extract the following attributes with high accuracy. Focus on clearly visible features only.`,
-        attributes: {
-          create: attributes.map((attr, index) => ({
-            key: attr.key,
-            label: attr.label,
-            type: attr.type,
-            required: attr.required,
-            options: attr.options ? JSON.stringify(attr.options) : null,
-            aiExtractable: attr.aiExtractable,
-            aiWeight: attr.aiWeight,
-            aiPromptHint: attr.aiPromptHint,
-            sortOrder: index + 1
-          }))
-        }
-      },
-      include: {
-        attributes: {
-          orderBy: { sortOrder: 'asc' }
-        }
-      }
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: category,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: crypto.randomUUID()
-      }
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid input data',
-          details: error.errors,
-          metadata: {
-            timestamp: new Date().toISOString(),
-            requestId: crypto.randomUUID()
-          }
-        },
-        { status: 400 }
-      )
-    }
-
-    console.error('Category creation error:', error)
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to create category',
-        metadata: {
-          timestamp: new Date().toISOString(),
-          requestId: crypto.randomUUID()
-        }
+        error: 'Failed to load categories',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )

@@ -1,3 +1,4 @@
+// src/app/api/extractions/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database'
 
@@ -12,11 +13,15 @@ export async function GET(
         category: {
           select: {
             id: true,
-            name: true,
+            code: true,
+            displayName: true,
             description: true,
-            attributes: {
-              where: { isActive: true },
-              orderBy: { sortOrder: 'asc' }
+            attributeConfigs: {
+              where: { isEnabled: true },
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                attribute: true
+              }
             }
           }
         }
@@ -25,8 +30,8 @@ export async function GET(
 
     if (!extraction) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           error: 'Extraction not found',
           metadata: {
             timestamp: new Date().toISOString(),
@@ -45,13 +50,13 @@ export async function GET(
         requestId: crypto.randomUUID()
       }
     })
-
   } catch (error) {
     console.error('Extraction fetch error:', error)
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: 'Failed to fetch extraction',
+        details: error instanceof Error ? error.message : 'Unknown error',
         metadata: {
           timestamp: new Date().toISOString(),
           requestId: crypto.randomUUID()

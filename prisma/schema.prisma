@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,94 +9,148 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Department {
+  id             String @id @default(uuid())
+  code           String @unique // "KIDS", "MENS", "WOMENS"
+  name           String
+  description    String?
+  subDepartments SubDepartment[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("departments")
+}
+
+model SubDepartment {
+  id           String @id @default(uuid())
+  code         String  // "IB", "IG", "KB_L", "KB_SETS", etc.
+  name         String
+  description  String?
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  categories   Category[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([departmentId, code])
+  @@map("sub_departments")
+}
+
 model Category {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  description String?
-  parentId    String?
+  id              String @id @default(uuid())
+  code            String  // "IB_BERMUDA", "M_JEANS", etc.
+  displayName     String
+  description     String?
   
-  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryHierarchy")
-  attributes  Attribute[]
-  extractions Extraction[]
+  subDepartmentId String?
+  subDepartment   SubDepartment? @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
   
-  aiPromptTemplate String  @default("")
-  isActive         Boolean @default(true)
-  sortOrder        Int     @default(0)
+  // Dynamic attribute configuration
+  attributeConfigs CategoryAttributeConfig[]
+  extractions     Extraction[]
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive        Boolean @default(true)
+  sortOrder       Int     @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
+  @@unique([subDepartmentId, code])
   @@map("categories")
 }
 
-model Attribute {
-  id    String        @id @default(uuid())
-  key   String
-  label String
-  type  AttributeType
+// Master attribute definitions (your 50+ attributes)
+model MasterAttribute {
+  id              String @id @default(uuid())
+  key             String @unique  // "additional_accessories", "belt_design"
+  label           String  // "ADDITIONAL ACCESSORIES", "BELT DESIGN"
+  type            AttributeType
+  description     String?
   
-  required Boolean @default(false)
-  options  Json?
+  // Your allowedValues structure: [{shortForm, fullForm}, ...]
+  allowedValues   Json?   // Stores your shortForm/fullForm options
   
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  // AI Configuration
+  aiExtractable   Boolean @default(true)
+  aiWeight        Float   @default(1.0)
+  aiPromptHint    String?
   
-  aiExtractable Boolean @default(true)
-  aiWeight      Float   @default(1.0)
-  aiPromptHint  String?
+  // Category configurations
+  categoryConfigs CategoryAttributeConfig[]
   
-  sortOrder Int     @default(0)
-  isActive  Boolean @default(true)
+  sortOrder       Int     @default(0)
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@unique([categoryId, key])
-  @@map("attributes")
+  @@map("master_attributes")
 }
 
-model Extraction {
-  id String @id @default(uuid())
+// Your true/false mapping system
+model CategoryAttributeConfig {
+  id           String @id @default(uuid())
   
-  imageUrl      String
-  imageMetadata Json
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  attributeId  String
+  attribute    MasterAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
   
-  extractedData Json
-  confidence    Float @default(0)
+  // Your true/false system
+  isEnabled    Boolean @default(false)  // Your true/false values
+  isRequired   Boolean @default(false)
   
-  aiModel       String @default("")
-  promptVersion String @default("v1.0")
+  // Category-specific overrides
+  customOptions Json?
+  customLabel   String?
   
-  processingTime Int @default(0)
-  tokenUsage     Int @default(0)
-  cost          Float @default(0)
+  sortOrder     Int @default(0)
   
-  status       ExtractionStatus @default(PROCESSING)
-  errorMessage String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   
-  userId    String?
-  sessionId String @default("")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@map("extractions")
+  @@unique([categoryId, attributeId])
+  @@map("category_attribute_configs")
 }
 
 enum AttributeType {
   TEXT
-  NUMBER
   SELECT
   MULTI_SELECT
   BOOLEAN
-  RANGE
-  COLOR
-  URL
+  NUMBER
   DATE
+}
+
+// Extraction model for AI processing
+model Extraction {
+  id              String @id @default(uuid())
+  imageUrl        String
+  imageMetadata   Json?
+  
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id])
+  
+  // Your extracted attribute values
+  extractedData   Json    // Stores actual values for enabled attributes
+  rawAIResponse   Json?   // Raw AI response
+  confidence      Float   @default(0)
+  
+  // AI processing info
+  aiModel         String?
+  promptVersion   String?
+  processingTime  Int?
+  tokenUsage      Int?
+  cost            Float?
+  
+  status          ExtractionStatus @default(PROCESSING)
+  errorMessage    String?
+  sessionId       String?
+  cacheKey        String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("extractions")
 }
 
 enum ExtractionStatus {

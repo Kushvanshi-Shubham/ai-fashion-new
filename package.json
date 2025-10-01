@@ -11,7 +11,11 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "import:fashion": "tsx scripts/import-fashion-data.ts",
+    "import:reset": "npx prisma db push --force-reset && npm run import:fashion",
+    "import:fast": "tsx scripts/fast-import-fashion.ts",
+    "import:simple": "tsx scripts/simple-import.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
@@ -30,6 +34,7 @@
     "multer": "^2.0.2",
     "next": "15.5.4",
     "openai": "^6.0.0",
+    "postcss": "^8.5.6",
     "prisma": "^6.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -43,13 +48,13 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.1.14",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.1.14",
     "typescript": "^5"
   }
 }
