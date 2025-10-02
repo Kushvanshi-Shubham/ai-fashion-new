@@ -108,7 +108,7 @@ async function persistAnalytics(job: ExtractionJob, result: { costUsd: number, t
                     tokensUsed: result.tokensUsed,
                     aiModel: job.data.model,
                     costUsd: result.costUsd,
-                    errorMessage: errorMessage,
+                    errorMessage: errorMessage || null,
                 }
             });
 

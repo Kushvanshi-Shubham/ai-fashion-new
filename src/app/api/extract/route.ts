@@ -20,10 +20,11 @@ const extractionLimiter = rateLimit({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
-  let rateLimitInfo;
-
+  console.log('[Extract API] POST request received');
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+  
   try {
+    let rateLimitInfo;
     // Apply rate limiting
     try {
       rateLimitInfo = await extractionLimiter.check(request, 'EXTRACTION')
@@ -52,8 +53,11 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null
     const categoryId = formData.get('categoryId') as string
 
+    console.log(`[Extract API] Request validation - File: ${file ? `${file.name} (${file.size} bytes)` : 'null'}, CategoryId: ${categoryId || 'null'}`);
+
     // Validate inputs
     if (!file || !categoryId) {
+      console.log(`[Extract API] Missing required fields - File: ${!!file}, CategoryId: ${!!categoryId}`);
       return NextResponse.json({
         success: false,
         error: 'Missing required fields',
@@ -72,6 +76,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!imageValidation.valid) {
+      console.log(`[Extract API] Image validation failed: ${imageValidation.error}`);
       return NextResponse.json({
         success: false,
         error: imageValidation.error,
@@ -143,6 +148,7 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
+    console.error('[Extract API] Unexpected error:', error);
     console.error('Extraction job creation error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorCode = 'JOB_CREATION_FAILED'
