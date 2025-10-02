@@ -92,3 +92,55 @@ Defined inside `@layer utilities`:
 - Tokens live in `src/app/globals.css` and mirror Tailwind theme extensions in `tailwind.config.mjs`.
 - Tailwind colour aliases (`surface`, `ink`, etc.) are available for component authoring (`text-ink`, `bg-surface`...).
 - This document will evolve as we refactor feature areas—treat it as the single source of truth for the visual language.
+
+---
+
+## v2.1 – Professional SaaS Refinements (October 2025)
+
+Focused polish round introducing consistent data presentation, badge semantics, and reduced cognitive load for dense workflows.
+
+### Additions
+
+- Data Table utilities: `.table-wrapper`, `.data-table`, confidence pills (`.confidence-high|medium|low`), status badges (`.status-*`).
+- Layout helpers: `.layout-section`, `.layout-grid-cards` for adaptive grid dashboards.
+- Input baseline style: `.input-base` ensuring consistent focus ring + translucent backgrounds.
+- Micro actions: `.btn-ghost-muted`, `.btn-outline-accent` for low-emphasis affordances.
+- Skeleton shimmer: `.skeleton` animation for perceived performance.
+- Scroll fade masks: `.scroll-fade`, `.scroll-fade-x` soften overflow edges.
+- Compact tone badges: `.badge-tonal` for inline numeric/meta markers.
+
+### Usage Guidance
+
+| Pattern | Use When | Notes |
+| --- | --- | --- |
+| Data table header stickiness | Column context must stay visible | Provided by `.data-table thead th` |
+| Confidence pill | Showing model confidence % | Map: high ≥80, medium 60–79, low <60 |
+| Status badge | Lifecycle label (completed/failed/processing/pending) | Avoid redundant icons |
+| Ghost muted button | Filter toggles / light toolbar actions | Replaces unstyled text buttons |
+| Outline accent button | Secondary primary-level actions | Below main CTA hierarchy |
+| Layout section | Primary vertical rhythm wrapper | Don't nest >2 levels |
+
+### Accessibility
+
+- All new surfaces keep ≥4.5:1 contrast for essential text.
+- Unified focus: `outline: 2px solid hsl(var(--ring) / 0.4)` (inputs, interactive pills).
+- Motion remains opt‑out via `prefers-reduced-motion`.
+
+### Migration Notes
+
+Legacy ad-hoc gray utility classes inside table & bulk action components replaced with token-based styles. No functional logic altered. When adding components, prefer variable-driven tokens before introducing bespoke colors.
+
+### Future Candidates
+
+- Chart color ramps (semantic series)
+- Density toggle (comfortable / compact)
+- Unified toast + inline alert variants
+
+### Spacing & Layout Tune (v2.1.1)
+
+- Introduced `.hero-shell`, `.center-stack`, `stack-gap-*` utilities for explicit vertical rhythm instead of ad‑hoc margins.
+- Sharpened cards via `.card-crisp` and accent overlay modifier for hover depth without heavy motion.
+- Standardized stat grid with `.stats-grid` using auto-fit minmax for consistent wrapping at intermediate widths.
+- Hero title & subtitle now use fluid clamp scale: ensures optical center and prevents oversized headings on ultra-wide viewports.
+
+---

@@ -104,26 +104,26 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className={`bg-white border border-gray-200 rounded-lg shadow-sm ${className}`}
+      className={`surface border-border/60 ${className}`}
     >
-      <div className="p-4">
+      <div className="p-4 md:p-5">
         {/* Header with selection info */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-blue-500" />
-              <span className="font-medium text-gray-900">{stats.total} items selected</span>
+              <Users className="w-5 h-5 text-primary" />
+              <span className="text-sm font-medium text-foreground">{stats.total} selected</span>
             </div>
-            <div className="text-sm text-gray-500">
-              {stats.completed > 0 && <span className="mr-3">{stats.completed} completed</span>}
-              {stats.failed > 0 && <span className="mr-3 text-red-600">{stats.failed} failed</span>}
-              {stats.processing > 0 && <span className="mr-3 text-blue-600">{stats.processing} processing</span>}
-              {stats.pending > 0 && <span className="text-gray-600">{stats.pending} pending</span>}
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {stats.completed > 0 && <span className="status-badge status-completed">{stats.completed} done</span>}
+              {stats.failed > 0 && <span className="status-badge status-failed">{stats.failed} failed</span>}
+              {stats.processing > 0 && <span className="status-badge status-processing">{stats.processing} processing</span>}
+              {stats.pending > 0 && <span className="status-badge status-pending">{stats.pending} pending</span>}
             </div>
           </div>
           <button
             onClick={onClearSelection}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-muted-foreground/50 hover:text-foreground transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -134,10 +134,10 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
           <button
             onClick={() => setShowEditForm(!showEditForm)}
             disabled={stats.completed === 0}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase transition-colors border ${
               stats.completed > 0
-                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-                : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                ? 'bg-primary-light/20 text-primary border-primary/30 hover:bg-primary-light/30'
+                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-border/50'
             }`}
           >
             <Edit3 className="w-4 h-4" />
@@ -148,10 +148,10 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
           <button
             onClick={onBulkDownload}
             disabled={stats.completed === 0}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase transition-colors border ${
               stats.completed > 0
-                ? 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
-                : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                ? 'bg-success-light/30 text-success border-success/40 hover:bg-success-light/50'
+                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-border/50'
             }`}
           >
             <Download className="w-4 h-4" />
@@ -161,10 +161,10 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
           <button
             onClick={onBulkRetry}
             disabled={stats.failed === 0}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase transition-colors border ${
               stats.failed > 0
-                ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
-                : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                ? 'bg-warning-light/40 text-warning border-warning/50 hover:bg-warning-light/60'
+                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-border/50'
             }`}
           >
             <RefreshCw className="w-4 h-4" />
@@ -173,7 +173,7 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
 
           <button
             onClick={onBulkDelete}
-            className="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors"
+            className="flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase bg-destructive-light/40 text-destructive border border-destructive/40 hover:bg-destructive-light/60 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete All</span>
@@ -187,21 +187,19 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-4 p-4 bg-gray-50 rounded-md border"
+              className="mt-4 p-4 rounded-md border border-border/60 bg-muted/40 backdrop-blur-sm"
             >
-              <h4 className="text-sm font-medium text-gray-900 mb-3">
+              <h4 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground mb-3">
                 Bulk Edit {stats.completed} completed extraction{stats.completed !== 1 ? 's' : ''}
               </h4>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Attribute
-                  </label>
+                  <label className="block text-[10px] font-medium tracking-wide uppercase text-muted-foreground mb-1">Attribute</label>
                   <select
                     value={editForm.attribute}
                     onChange={(e) => setEditForm(prev => ({ ...prev, attribute: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="input-base"
                   >
                     <option value="">Select attribute...</option>
                     {commonAttributes.map(attr => (
@@ -213,13 +211,11 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Operation
-                  </label>
+                  <label className="block text-[10px] font-medium tracking-wide uppercase text-muted-foreground mb-1">Operation</label>
                   <select
                     value={editForm.operation}
                     onChange={(e) => setEditForm(prev => ({ ...prev, operation: e.target.value as BulkEditFormData['operation'] }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="input-base"
                   >
                     <option value="set">Set Value</option>
                     <option value="clear">Clear Value</option>
@@ -228,40 +224,36 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Value
-                  </label>
+                  <label className="block text-[10px] font-medium tracking-wide uppercase text-muted-foreground mb-1">Value</label>
                   <input
                     type="text"
                     value={editForm.value}
                     onChange={(e) => setEditForm(prev => ({ ...prev, value: e.target.value }))}
                     disabled={editForm.operation === 'clear'}
                     placeholder={editForm.operation === 'clear' ? 'Will be cleared' : 'Enter value...'}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      editForm.operation === 'clear' ? 'bg-gray-100 text-gray-400' : ''
-                    }`}
+                    className={`input-base ${editForm.operation === 'clear' ? 'opacity-60' : ''}`}
                   />
                 </div>
               </div>
 
               <div className="flex items-center justify-between mt-4">
-                <div className="text-xs text-gray-500">
+                <div className="text-[10px] text-muted-foreground/70">
                   This will update the &quot;{editForm.attribute}&quot; attribute for all {stats.completed} completed extractions
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setShowEditForm(false)}
-                    className="px-3 py-1 text-sm text-gray-600 hover:text-gray-700 transition-colors"
+                    className="px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleBulkEdit}
                     disabled={!editForm.attribute}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center space-x-2 rounded-md px-4 py-2 text-xs font-semibold tracking-wide uppercase transition-colors ${
                       editForm.attribute
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                        : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }`}
                   >
                     <Check className="w-4 h-4" />

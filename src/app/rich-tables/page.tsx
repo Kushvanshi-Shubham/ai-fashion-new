@@ -131,28 +131,55 @@ export default function RichDataTablesDemo() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto safe-px safe-py">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="mb-10">
+          <h1 className="text-4xl font-bold text-foreground mb-3 tracking-tight">
             Rich Data Tables Demo
           </h1>
-          <p className="text-lg text-gray-600 mb-4">
+          <p className="text-lg text-muted-foreground mb-6 text-pretty">
             Comprehensive extraction results table with inline editing, sorting, filtering, and bulk operations
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h2 className="text-sm font-medium text-blue-800 mb-2">Features Demonstrated:</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-blue-700">
-              <div>• Inline attribute editing</div>
-              <div>• Advanced sorting & filtering</div>
-              <div>• Multi-row selection</div>
-              <div>• Bulk edit operations</div>
-              <div>• Bulk download (Excel)</div>
-              <div>• Expandable row details</div>
-              <div>• Status indicators</div>
-              <div>• Confidence scoring</div>
-              <div>• Professional layout</div>
+          <div className="surface-glass p-6 border-l-4 border-primary">
+            <h2 className="text-base font-semibold text-foreground mb-4">Features Demonstrated:</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Inline attribute editing
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Advanced sorting & filtering
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Multi-row selection
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Bulk edit operations
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Bulk download (Excel)
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Expandable row details
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Status indicators
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Confidence scoring
+              </div>
+              <div className="flex items-center">
+                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                Professional layout
+              </div>
             </div>
           </div>
         </div>
@@ -166,45 +193,69 @@ export default function RichDataTablesDemo() {
         />
 
         {/* Instructions */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">How to Use</h2>
-          <div className="space-y-4 text-gray-600">
+        <div className="surface-elevated p-8">
+          <h2 className="text-2xl font-semibold text-foreground mb-6">How to Use</h2>
+          <div className="space-y-6 text-muted-foreground">
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Table Features:</h3>
-              <ul className="space-y-1 ml-4">
-                <li>• <strong>Sorting:</strong> Click column headers to sort by that field</li>
-                <li>• <strong>Filtering:</strong> Use the filter controls to narrow down results</li>
-                <li>• <strong>Row Expansion:</strong> Click the chevron to see all attributes</li>
-                <li>• <strong>Inline Editing:</strong> Click any attribute value to edit it directly</li>
+              <h3 className="font-semibold text-foreground mb-3">Table Features:</h3>
+              <ul className="space-y-2 ml-4">
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Sorting:</span> Click column headers to sort by that field</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Filtering:</span> Use the filter controls to narrow down results</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Row Expansion:</span> Click the chevron to see all attributes</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Inline Editing:</span> Click any attribute value to edit it directly</span>
+                </li>
               </ul>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Bulk Operations:</h3>
-              <ul className="space-y-1 ml-4">
-                <li>• <strong>Selection:</strong> Check rows to select them for bulk operations</li>
-                <li>• <strong>Bulk Edit:</strong> Edit attributes across multiple selected items</li>
-                <li>• <strong>Download:</strong> Export selected results to Excel format</li>
-                <li>• <strong>Retry:</strong> Retry failed extractions in bulk</li>
+              <h3 className="font-semibold text-foreground mb-3">Bulk Operations:</h3>
+              <ul className="space-y-2 ml-4">
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Selection:</span> Check rows to select them for bulk operations</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Bulk Edit:</span> Edit attributes across multiple selected items</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Download:</span> Export selected results to Excel format</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
+                  <span><span className="font-medium text-foreground">Retry:</span> Retry failed extractions in bulk</span>
+                </li>
               </ul>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Status Indicators:</h3>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                  <span>Completed</span>
+              <h3 className="font-semibold text-foreground mb-4">Status Indicators:</h3>
+              <div className="flex flex-wrap gap-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 rounded-full bg-success shadow-soft"></div>
+                  <span className="text-sm font-medium">Completed</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-                  <span>Processing</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 rounded-full bg-primary shadow-soft"></div>
+                  <span className="text-sm font-medium">Processing</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded-full bg-red-500"></div>
-                  <span>Failed</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 rounded-full bg-destructive shadow-soft"></div>
+                  <span className="text-sm font-medium">Failed</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded-full bg-gray-400"></div>
-                  <span>Pending</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 rounded-full bg-muted-foreground shadow-soft"></div>
+                  <span className="text-sm font-medium">Pending</span>
                 </div>
               </div>
             </div>

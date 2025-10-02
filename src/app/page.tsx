@@ -57,8 +57,8 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <PageSection className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 text-center overflow-hidden" bleed>
-        <Container>
+      <PageSection className="relative hero-shell text-center overflow-hidden section-feather" bleed>
+        <Container className="center-stack stack-gap-xl">
           {/* Hero Badge */}
           <motion.div 
             className="inline-flex items-center gap-2 mb-8 justify-center"
@@ -74,7 +74,7 @@ export default function HomePage() {
 
           {/* Hero Title */}
           <motion.h1 
-            className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-8 text-balance"
+            className="hero-title mb-6 text-balance"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
@@ -88,7 +88,7 @@ export default function HomePage() {
 
           {/* Hero Description */}
           <motion.p 
-            className="text-xl text-muted-foreground max-w-3xl mx-auto mb-12 text-pretty leading-relaxed"
+            className="hero-sub text-muted-foreground mx-auto mb-10 text-pretty leading-relaxed font-medium"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -98,7 +98,7 @@ export default function HomePage() {
 
           {/* CTA Buttons */}
           <motion.div 
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-20"
+            className="hero-actions flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-14"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -121,7 +121,7 @@ export default function HomePage() {
 
           {/* Stats Grid */}
           <motion.div 
-            className="grid grid-cols-2 lg:grid-cols-4 gap-6 max-w-4xl mx-auto"
+            className="stats-grid max-w-5xl mx-auto"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -146,9 +146,10 @@ export default function HomePage() {
         </Container>
 
         {/* Background Decoration */}
-        <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+          <div className="absolute top-[12%] left-[4%] w-64 h-64 bg-primary/8 rounded-full blur-3xl" />
+          <div className="absolute bottom-[18%] right-[6%] w-80 h-80 bg-accent/10 rounded-full blur-[100px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5/10 to-transparent opacity-40" />
         </div>
       </PageSection>
 
