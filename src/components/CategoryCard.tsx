@@ -1,3 +1,4 @@
+"use client"
 'use client'
 import React, { memo } from 'react'
 import { motion } from 'framer-motion'
@@ -8,22 +9,11 @@ import {
   TrendingUp, 
   Zap 
 } from 'lucide-react'
-import { CategoryFormData } from '@/types/fashion'
+import { CategoryFormData, Category } from '@/types/fashion'
 
 
 interface CategoryCardProps {
-  category: {
-    id: string
-    name: string
-    description: string
-    department: string
-    subDepartment: string
-    enabledAttributes: number
-    totalAttributes: number
-    isActive: boolean
-    completeness?: number
-    
-  }
+  category: Partial<CategoryFormData> | Partial<Category>
   isSelected: boolean
   onSelect: (category: CategoryFormData) => void
   disabled?: boolean
@@ -39,16 +29,19 @@ const CategoryCard = memo(function CategoryCard({
   showStats = true,
   className = ''
 }: CategoryCardProps) {
-  
-  const completenessPercentage = category.completeness || 
-    Math.round((category.enabledAttributes / Math.max(category.totalAttributes, 1)) * 100)
+  // Narrow the incoming partial type for safe reads
+  const cf = category as Partial<CategoryFormData> & Partial<Category>
+  const enabled = cf.enabledAttributes ?? 0
+  const total = cf.totalAttributes ?? 0
+  const completenessPercentage = cf.completeness ?? Math.round((enabled / Math.max(total, 1)) * 100)
 
   const handleSelect = async () => {
     if (disabled) return
     
     try {
       // Fetch full category data
-      const response = await fetch(`/api/categories/${category.id}/form`)
+  const categoryId = cf.categoryId ?? cf.id
+  const response = await fetch(`/api/categories/${categoryId}/form`)
       const result = await response.json()
       
       if (result.success) {
@@ -124,24 +117,24 @@ const CategoryCard = memo(function CategoryCard({
       {/* Header */}
       <div className="mb-3">
         <div className="flex items-start space-x-2 mb-2">
-          <span className="text-2xl">{getDepartmentIcon(category.department)}</span>
+          <span className="text-2xl">{getDepartmentIcon((cf.department ?? 'UNKNOWN') as string)}</span>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 truncate" title={category.name}>
-              {category.name}
+            <h3 className="font-semibold text-gray-900 truncate" title={cf.categoryName ?? cf.name}>
+              {cf.categoryName ?? cf.name}
             </h3>
             <div className="flex items-center space-x-2 mt-1">
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDepartmentColor(category.department)}`}>
-                {category.department}
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDepartmentColor(cf.department ?? 'UNKNOWN')}`}>
+                {cf.department ?? 'UNKNOWN'}
               </span>
               <span className="text-xs text-gray-500">
-                {category.subDepartment}
+                {cf.subDepartment}
               </span>
             </div>
           </div>
         </div>
         
-        <p className="text-sm text-gray-600 line-clamp-2" title={category.description}>
-          {category.description}
+        <p className="text-sm text-gray-600 line-clamp-2" title={cf.description}>
+          {cf.description}
         </p>
       </div>
 
@@ -154,8 +147,8 @@ const CategoryCard = memo(function CategoryCard({
               <Layers className="w-4 h-4 text-gray-400" />
               <span className="text-sm text-gray-600">Attributes</span>
             </div>
-            <span className="text-sm font-medium text-gray-900">
-              {category.enabledAttributes}/{category.totalAttributes}
+              <span className="text-sm font-medium text-gray-900">
+              {cf.enabledAttributes ?? 0}/{cf.totalAttributes ?? 0}
             </span>
           </div>
 
@@ -195,7 +188,7 @@ const CategoryCard = memo(function CategoryCard({
       )}
 
       {/* Status Badge */}
-      {!category.isActive && (
+      {!cf.isActive && (
         <div className="absolute top-3 left-3">
           <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
             Inactive

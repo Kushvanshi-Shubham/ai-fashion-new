@@ -1,6 +1,20 @@
 import { OpenAI } from 'openai'
 import { Redis } from 'ioredis'
-import { CategoryFormData, ExtractionResult } from '@/types/fashion'
+import crypto from 'crypto'
+import { CategoryFormData, ExtractionResult, AttributeDetail, AttributeField } from '@/types/fashion'
+
+// Minimal OpenAI response shape used by this module
+type OpenAIUsage = { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number }
+type OpenAIChoice = { message?: { content?: string } }
+type OpenAIResponse = { choices?: OpenAIChoice[]; usage?: OpenAIUsage }
+
+type AIParsed = { attributes?: Record<string, unknown>; overall_confidence?: number }
+
+type AIAttributeEntry = {
+  value?: unknown
+  confidence?: number
+  reasoning?: string
+}
 
 // Initialize clients with error handling
 let openai: OpenAI | null = null
@@ -19,11 +33,10 @@ try {
   
   // Optional Redis for caching
   if (process.env.REDIS_URL) {
-    redis = new Redis(process.env.REDIS_URL, {
-      retryDelayOnFailover: 100,
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-    })
+    // ioredis v5 constructor supports a single URL string
+    redis = new Redis(process.env.REDIS_URL)
+    // configure retries carefully
+    redis.options = { ...(redis.options || {}), maxRetriesPerRequest: 3 }
   }
 } catch (error) {
   console.error('Failed to initialize AI service:', error)
@@ -47,7 +60,7 @@ const DEFAULT_CONFIG: AIServiceConfig = {
 
 export class AIService {
   private static promptCache = new Map<string, string>()
-  private static resultCache = new Map<string, any>()
+  private static resultCache = new Map<string, { result: ExtractionResult; expiry: number }>()
   private static requestCount = 0
   private static tokenUsage = { total: 0, prompt: 0, completion: 0 }
   
@@ -80,11 +93,8 @@ export class AIService {
         const cached = await this.getCachedResult(cacheKey)
         if (cached) {
           console.log(`✅ Cache hit for ${categoryData.categoryName}`)
-          return {
-            ...cached,
-            fromCache: true,
-            processingTime: Date.now() - startTime
-          }
+          // Return cached result (do not mutate with fields not present on all variants)
+          return { ...cached, fromCache: true } as ExtractionResult
         }
       }
 
@@ -129,30 +139,33 @@ export class AIService {
         await this.cacheResult(cacheKey, result, finalConfig.cacheTTL)
       }
       
-      // Update usage stats
-      this.updateUsageStats(response.usage || { total_tokens: 0, prompt_tokens: 0, completion_tokens: 0 })
+        // Update usage stats (guard numeric fields)
+        this.updateUsageStats({
+          total_tokens: typeof response.usage?.total_tokens === 'number' ? response.usage!.total_tokens : 0,
+          prompt_tokens: typeof response.usage?.prompt_tokens === 'number' ? response.usage!.prompt_tokens : 0,
+          completion_tokens: typeof response.usage?.completion_tokens === 'number' ? response.usage!.completion_tokens : 0,
+        })
       
       // Memory cleanup
       this.performMemoryCleanup()
       
       return result
 
-    } catch (error) {
-      console.error('AI extraction failed:', error)
-      
-      // Return structured error response
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('AI extraction failed:', err)
+
+      // Return structured failed extraction result (minimal fields)
       return {
         id: `failed_${Date.now()}`,
         fileName: 'extraction_failed',
         status: 'failed',
-        attributes: {},
-        confidence: 0,
-        tokensUsed: 0,
-        processingTime: Date.now() - startTime,
         createdAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-        fromCache: false
-      }
+        fromCache: false,
+        // Provide a minimal error field expected by callers
+        // (types/fashion's FailedExtractionResult contains 'error')
+        error: errorMsg
+      } as unknown as ExtractionResult
     }
   }
 
@@ -171,7 +184,7 @@ export class AIService {
       .slice(0, 15) // Limit for token optimization
       .map(field => {
         const options = field.options 
-          ? field.options.slice(0, 8).map((opt: any) => `"${opt.shortForm}"`).join('|')
+          ? field.options.slice(0, 8).map((opt) => `"${opt.shortForm}"`).join('|')
           : 'text'
         
         return `"${field.key}": {
@@ -225,19 +238,21 @@ Respond with clean JSON only:`
   /**
    * Call OpenAI with retry logic
    */
-  private static async callOpenAIWithRetry(params: any, maxRetries = 3): Promise<any> {
-    let lastError: Error
+  private static async callOpenAIWithRetry(params: unknown, maxRetries = 3): Promise<OpenAIResponse> {
+    let lastError: Error | null = null
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🤖 OpenAI attempt ${attempt}/${maxRetries}`)
-        const response = await openai!.chat.completions.create(params)
-        
-        this.requestCount++
-        return response
+  // The OpenAI SDK client has a dynamic shape here; treat as unknown and cast to our minimal response
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const response = await (openai as any)!.chat.completions.create(params)
+
+  this.requestCount++
+  return response as OpenAIResponse
         
       } catch (error) {
-        lastError = error as Error
+  lastError = error as Error
         
         // Don't retry on certain errors
         if (error instanceof Error) {
@@ -256,14 +271,14 @@ Respond with clean JSON only:`
       }
     }
 
-    throw lastError!
+    throw lastError ?? new Error('Unknown OpenAI error')
   }
 
   /**
    * Process AI response with validation
    */
   private static async processAIResponse(
-    response: any, 
+    response: OpenAIResponse, 
     categoryData: CategoryFormData, 
     startTime: number
   ): Promise<ExtractionResult> {
@@ -271,29 +286,31 @@ Respond with clean JSON only:`
     if (!content) {
       throw new Error('Empty response from OpenAI')
     }
-
-    let parsed: any
+    let parsed: AIParsed | null = null
     try {
-      parsed = JSON.parse(content)
+      const p = JSON.parse(content)
+      parsed = typeof p === 'object' && p !== null ? (p as AIParsed) : null
     } catch (error) {
-      throw new Error(`Invalid JSON response: ${content.substring(0, 100)}...`)
+      console.error('JSON parse failed for AI response:', error)
+      throw new Error(`Invalid JSON response: ${String(content).substring(0, 100)}...`)
     }
-
     // Validate and normalize response
-    const attributes: Record<string, AttributeDetail> = {}
-    const rawAttributes = parsed.attributes || {}
+  const attributes: Record<string, AttributeDetail> = {}
+    // Use safe access for parsed
+  const rawAttributes: Record<string, unknown> = parsed && parsed.attributes && typeof parsed.attributes === 'object' ? (parsed.attributes as Record<string, unknown>) : {}
 
-    for (const field of categoryData.fields) {
-      const aiData = rawAttributes[field.key]
-      
-      if (aiData && aiData.value && aiData.value !== 'null') {
-        // Validate against field options
-        const validatedValue = this.validateAttributeValue(aiData.value, field)
-        
+    for (const field of categoryData.fields as AttributeField[]) {
+      const aiDataRaw = rawAttributes ? rawAttributes[field.key] : undefined
+      const aiData = (aiDataRaw && typeof aiDataRaw === 'object') ? (aiDataRaw as AIAttributeEntry) : undefined
+
+      if (aiData && typeof aiData === 'object' && 'value' in aiData && aiData.value !== undefined && aiData.value !== 'null') {
+        const rawVal = (aiData as AIAttributeEntry).value
+        const validatedValue = this.validateAttributeValue(String(rawVal), field)
+
         attributes[field.key] = {
           value: validatedValue,
-          confidence: Math.max(0, Math.min(100, aiData.confidence || 0)),
-          reasoning: aiData.reasoning || 'No reasoning provided',
+          confidence: this.normalizeConfidence(typeof aiData.confidence === 'number' ? aiData.confidence : 0),
+          reasoning: aiData.reasoning ?? 'No reasoning provided',
           fieldLabel: field.label,
           isValid: validatedValue !== null
         }
@@ -308,31 +325,51 @@ Respond with clean JSON only:`
       }
     }
 
+  const overallConfidenceRaw = parsed && typeof parsed === 'object' && typeof parsed.overall_confidence === 'number' ? parsed.overall_confidence : 0
+  const overallConfidence = this.normalizeConfidence(overallConfidenceRaw)
+
+    // Guard tokensUsed read
+    const tokensUsed = typeof response.usage?.total_tokens === 'number' ? response.usage!.total_tokens : 0
+
+    // Ensure integer processingTime
+    const processingTime = Math.max(0, Date.now() - startTime)
+
     return {
       id: `ext_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       fileName: categoryData.categoryName,
       status: 'completed',
       attributes,
-      confidence: Math.max(0, Math.min(100, parsed.overall_confidence || 0)),
-      tokensUsed: response.usage?.total_tokens || 0,
-      processingTime: Date.now() - startTime,
+      confidence: overallConfidence,
+      tokensUsed: typeof tokensUsed === 'number' ? tokensUsed : 0,
+      processingTime,
       createdAt: new Date().toISOString(),
       fromCache: false
     }
   }
 
   /**
+   * Normalize confidence value into integer 0-100.
+   * Accepts either a 0-1 float or 0-100 number and returns a rounded integer.
+   */
+  private static normalizeConfidence(raw?: number): number {
+    if (typeof raw !== 'number' || Number.isNaN(raw)) return 0
+    let v = raw
+    // If AI returned a 0-1 value, scale up to 0-100
+    if (v > 0 && v <= 1) v = v * 100
+    // Clamp and round
+    return Math.round(Math.max(0, Math.min(100, v)))
+  }
+
+  /**
    * Validate attribute value against field options
    */
-  private static validateAttributeValue(value: string, field: any): string | null {
+  private static validateAttributeValue(value: string, field: AttributeField): string | null {
     if (!field.options || field.options.length === 0) {
       return value // Text field
     }
 
     // Exact match
-    const exactMatch = field.options.find((opt: any) => 
-      opt.shortForm === value || opt.fullForm === value
-    )
+    const exactMatch = field.options.find((opt) => opt.shortForm === value || opt.fullForm === value)
     if (exactMatch) return exactMatch.shortForm
 
     // Fuzzy match
@@ -345,19 +382,13 @@ Respond with clean JSON only:`
   /**
    * Find best matching option using string similarity
    */
-  private static findBestMatch(value: string, options: any[]): { option: any, score: number } {
-    let bestMatch = { option: options[0], score: 0 }
+  private static findBestMatch(value: string, options: { shortForm: string; fullForm: string }[]): { option: { shortForm: string; fullForm: string }, score: number } {
+  let bestMatch = { option: options[0] ?? { shortForm: '', fullForm: '' }, score: 0 }
     const normalizedValue = value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
     for (const option of options) {
-      const shortScore = this.calculateSimilarity(
-        normalizedValue,
-        option.shortForm.toLowerCase().replace(/[^a-z0-9]/g, '')
-      )
-      const fullScore = this.calculateSimilarity(
-        normalizedValue,
-        option.fullForm.toLowerCase().replace(/[^a-z0-9]/g, '')
-      )
+  const shortScore = this.calculateSimilarity(normalizedValue, option.shortForm.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  const fullScore = this.calculateSimilarity(normalizedValue, option.fullForm.toLowerCase().replace(/[^a-z0-9]/g, ''))
 
       const maxScore = Math.max(shortScore, fullScore)
       if (maxScore > bestMatch.score) {
@@ -387,21 +418,20 @@ Respond with clean JSON only:`
    * Generate image hash for caching
    */
   private static generateImageHash(buffer: Buffer): string {
-    const crypto = require('crypto')
     return crypto.createHash('md5').update(buffer).digest('hex').substring(0, 16)
   }
 
   /**
    * Cache result with Redis or memory
    */
-  private static async cacheResult(key: string, result: any, ttl: number): Promise<void> {
+  private static async cacheResult(key: string, result: ExtractionResult, ttl: number): Promise<void> {
     try {
       if (redis && await redis.ping() === 'PONG') {
         await redis.setex(key, ttl, JSON.stringify(result))
       } else {
         // Fallback to memory cache
         this.resultCache.set(key, { result, expiry: Date.now() + (ttl * 1000) })
-        
+
         // Memory cleanup
         if (this.resultCache.size > this.MAX_CACHE_SIZE) {
           this.cleanupResultCache()
@@ -415,7 +445,7 @@ Respond with clean JSON only:`
   /**
    * Get cached result
    */
-  private static async getCachedResult(key: string): Promise<any | null> {
+  private static async getCachedResult(key: string): Promise<ExtractionResult | null> {
     try {
       if (redis && await redis.ping() === 'PONG') {
         const cached = await redis.get(key)
@@ -474,13 +504,14 @@ Respond with clean JSON only:`
    * Perform comprehensive memory cleanup
    */
   private static performMemoryCleanup(): void {
-    if (this.requestCount % 50 === 0) { // Every 50 requests
+    if (this.requestCount > 0 && this.requestCount % 50 === 0) { // Every 50 requests
       this.cleanupPromptCache()
       this.cleanupResultCache()
-      
-      // Force garbage collection if available
-      if (global.gc) {
-        global.gc()
+
+      // Do not force GC in Node.js; log potential GC availability
+      const maybeGc = (globalThis as unknown as { gc?: () => void }).gc
+      if (typeof maybeGc === 'function') {
+        console.debug('GC is available in environment, not invoked to avoid side-effects')
       }
     }
   }
@@ -488,10 +519,11 @@ Respond with clean JSON only:`
   /**
    * Update usage statistics
    */
-  private static updateUsageStats(usage: any): void {
-    this.tokenUsage.total += usage.total_tokens
-    this.tokenUsage.prompt += usage.prompt_tokens
-    this.tokenUsage.completion += usage.completion_tokens
+  private static updateUsageStats(usage: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number } | undefined): void {
+    if (!usage) return
+    this.tokenUsage.total += usage.total_tokens ?? 0
+    this.tokenUsage.prompt += usage.prompt_tokens ?? 0
+    this.tokenUsage.completion += usage.completion_tokens ?? 0
   }
 
   /**
@@ -530,7 +562,7 @@ Respond with clean JSON only:`
   /**
    * Health check
    */
-  static async healthCheck(): Promise<{ status: string; details: any }> {
+  static async healthCheck(): Promise<{ status: string; details: Record<string, unknown> }> {
     const checks = {
       openai: false,
       redis: false,

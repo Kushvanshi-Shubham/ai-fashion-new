@@ -1,17 +1,21 @@
+"use client"
 
 import { useCallback, useEffect, useState } from 'react'
 import { useExtractionStore, useExtractionSelectors } from '@/store/useExtractionStore'
-import { CategoryFormData } from '@/types/fashion'
+import { CategoryFormData, ExtractionResult } from '@/types/fashion'
+
+// Local uploaded image shape is provided by the store; avoid duplicating here
 
 export interface UseExtractionOptions {
   autoProcess?: boolean
   retryOnError?: boolean
-  onSuccess?: (result: any) => void
+  onSuccess?: (result: ExtractionResult) => void
   onError?: (error: string) => void
   onProgress?: (progress: number) => void
 }
 
 export const useExtraction = (options: UseExtractionOptions = {}) => {
+  const { autoProcess, retryOnError, onProgress, onSuccess, onError } = options
   const {
     setCategory,
     addImages,
@@ -23,64 +27,65 @@ export const useExtraction = (options: UseExtractionOptions = {}) => {
     cleanup
   } = useExtractionStore()
 
-  const selectedCategory = useExtractionSelectors.selectedCategory()
-  const uploadedImages = useExtractionSelectors.uploadedImages()
-  const results = useExtractionSelectors.results()
-  const isProcessing = useExtractionSelectors.isProcessing()
-  const error = useExtractionSelectors.error()
-  const pendingImages = useExtractionSelectors.pendingImages()
-  const processingImages = useExtractionSelectors.processingImages()
-  const completedImages = useExtractionSelectors.completedImages()
-  const failedImages = useExtractionSelectors.failedImages()
-  const successRate = useExtractionSelectors.successRate()
+  const selectors = useExtractionSelectors()
+  const selectedCategory = selectors.selectedCategory
+  const uploadedImages = selectors.uploadedImages
+  const results = selectors.results
+  const isProcessing = selectors.isProcessing
+  const error = selectors.error
+  const pendingImages = selectors.pendingImages
+  const processingImages = selectors.processingImages
+  const completedImages = selectors.completedImages
+  const failedImages = selectors.failedImages
+  const successRate = selectors.stats?.successRate ?? 0
 
   // Auto-process when images are added
   useEffect(() => {
-    if (options.autoProcess && pendingImages.length > 0 && !isProcessing && selectedCategory) {
+    if (autoProcess && pendingImages.length > 0 && !isProcessing && selectedCategory) {
       startBatchExtraction()
     }
-  }, [pendingImages.length, isProcessing, selectedCategory, options.autoProcess])
+  }, [pendingImages.length, isProcessing, selectedCategory, autoProcess, startBatchExtraction])
 
   // Handle progress updates
   useEffect(() => {
-    if (options.onProgress) {
+    if (onProgress) {
       const totalImages = uploadedImages.length
       const completedCount = completedImages.length + failedImages.length
       const progress = totalImages > 0 ? (completedCount / totalImages) * 100 : 0
-      options.onProgress(progress)
+      onProgress(progress)
     }
-  }, [completedImages.length, failedImages.length, uploadedImages.length])
+  }, [completedImages.length, failedImages.length, uploadedImages.length, onProgress])
 
   // Handle success
   useEffect(() => {
-    if (options.onSuccess && completedImages.length > 0) {
+    if (onSuccess && completedImages.length > 0) {
       const latestResult = results[results.length - 1]
       if (latestResult) {
-        options.onSuccess(latestResult)
+        onSuccess(latestResult)
       }
     }
-  }, [completedImages.length, results])
+  }, [completedImages.length, results, onSuccess])
 
   // Handle errors
   useEffect(() => {
-    if (options.onError && error) {
-      options.onError(error)
+    if (onError && error) {
+      onError(error)
     }
-  }, [error])
+  }, [error, onError])
 
   // Auto-retry failed extractions
   useEffect(() => {
-    if (options.retryOnError && failedImages.length > 0 && !isProcessing) {
+    if (retryOnError && failedImages.length > 0 && !isProcessing) {
       // Retry after a delay
       const retryTimeout = setTimeout(() => {
-        failedImages.forEach(image => {
+        failedImages.forEach((image) => {
           retryExtraction(image.id)
         })
       }, 5000) // 5 second delay
 
       return () => clearTimeout(retryTimeout)
     }
-  }, [failedImages.length, isProcessing, options.retryOnError])
+  }, [failedImages, isProcessing, retryOnError, retryExtraction])
 
   // Memoized handlers
   const handleCategorySelect = useCallback((category: CategoryFormData) => {
@@ -177,8 +182,8 @@ export const useExtraction = (options: UseExtractionOptions = {}) => {
     optimizeForSpeed,
     
     // Utility
-    getImageById: (id: string) => uploadedImages.find(img => img.id === id),
-    getResultById: (id: string) => results.find(result => result.id === id),
+  getImageById: (id: string) => uploadedImages.find(img => img.id === id),
+  getResultById: (id: string) => results.find((result: ExtractionResult) => result.id === id),
     
     // Statistics
     stats: {

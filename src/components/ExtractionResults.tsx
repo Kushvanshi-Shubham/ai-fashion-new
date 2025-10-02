@@ -1,5 +1,4 @@
-
-'use client'
+"use client"
 import React, { memo, useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -15,7 +14,7 @@ import {
   RefreshCw,
   X
 } from 'lucide-react'
-import { ExtractionResult, AttributeDetail } from '@/types/fashion'
+import { ExtractionResult, AttributeDetail, isCompletedExtraction } from '@/types'
 
 interface ExtractionResultsProps {
   results: ExtractionResult[]
@@ -48,9 +47,9 @@ const ExtractionResults = memo(function ExtractionResults({
         case 'failed':
           return result.status === 'failed'
         case 'high-confidence':
-          return result.confidence >= 80
+          return isCompletedExtraction(result) && result.confidence >= 80
         case 'low-confidence':
-          return result.confidence < 60
+          return isCompletedExtraction(result) && result.confidence < 60
         default:
           return true
       }
@@ -68,11 +67,11 @@ const ExtractionResults = memo(function ExtractionResults({
     filtered.sort((a, b) => {
       switch (sort) {
         case 'confidence':
-          return b.confidence - a.confidence
+          return (isCompletedExtraction(b) ? b.confidence : -Infinity) - (isCompletedExtraction(a) ? a.confidence : -Infinity)
         case 'name':
           return a.fileName.localeCompare(b.fileName)
         case 'processing-time':
-          return a.processingTime - b.processingTime
+          return (isCompletedExtraction(a) ? a.processingTime : Infinity) - (isCompletedExtraction(b) ? b.processingTime : Infinity)
         case 'recent':
         default:
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -87,13 +86,12 @@ const ExtractionResults = memo(function ExtractionResults({
     const total = results.length
     const completed = results.filter(r => r.status === 'completed').length
     const failed = results.filter(r => r.status === 'failed').length
-    const avgConfidence = completed > 0 
-      ? Math.round(results.filter(r => r.status === 'completed')
-          .reduce((sum, r) => sum + r.confidence, 0) / completed)
+    const avgConfidence = completed > 0
+      ? Math.round(results.filter(isCompletedExtraction).reduce((sum, r) => sum + r.confidence, 0) / completed)
       : 0
-    const totalTokens = results.reduce((sum, r) => sum + r.tokensUsed, 0)
+    const totalTokens = results.reduce((sum, r) => sum + (isCompletedExtraction(r) ? r.tokensUsed : 0), 0)
     const avgProcessingTime = total > 0
-      ? Math.round(results.reduce((sum, r) => sum + r.processingTime, 0) / total)
+      ? Math.round(results.reduce((sum, r) => sum + (isCompletedExtraction(r) ? r.processingTime : 0), 0) / total)
       : 0
 
     return {
@@ -127,20 +125,42 @@ const ExtractionResults = memo(function ExtractionResults({
   }
 
   const exportResults = () => {
-    const csv = results.map(result => ({
-      fileName: result.fileName,
-      status: result.status,
-      confidence: result.confidence,
-      tokensUsed: result.tokensUsed,
-      processingTime: result.processingTime,
-      createdAt: result.createdAt,
-      attributeCount: Object.keys(result.attributes).length,
-      extractedCount: Object.values(result.attributes).filter(attr => attr.value !== null).length
-    }))
+    const headers = ['fileName','status','confidence','tokensUsed','processingTime','createdAt','attributeCount','extractedCount']
+
+    const rows = results.map(result => {
+      const isDone = isCompletedExtraction(result)
+      const attributes = isDone ? result.attributes : {}
+      const attributeCount = Object.keys(attributes || {}).length
+      const extractedCount = Object.values(attributes || {}).filter((attr: unknown) => {
+        if (!attr || typeof attr !== 'object') return false
+        const maybe = attr as AttributeDetail
+        return maybe.value !== null
+      }).length
+
+      return {
+        fileName: result.fileName,
+        status: result.status,
+        confidence: isDone ? (typeof result.confidence === 'number' ? result.confidence : '') : '',
+        tokensUsed: isDone ? (typeof result.tokensUsed === 'number' ? result.tokensUsed : '') : '',
+        processingTime: isDone ? (typeof result.processingTime === 'number' ? result.processingTime : '') : '',
+        createdAt: result.createdAt,
+        attributeCount,
+        extractedCount
+      }
+    })
+
+    const escape = (v: unknown) => {
+      if (v === null || v === undefined) return ''
+      const s = String(v)
+      if (s.includes(',') || s.includes('\n') || s.includes('"')) {
+        return '"' + s.replace(/"/g, '""') + '"'
+      }
+      return s
+    }
 
     const csvContent = [
-      Object.keys(csv[0]).join(','),
-      ...csv.map(row => Object.values(row).join(','))
+      headers.join(','),
+      ...rows.map((r: Record<string, unknown>) => headers.map(h => escape(r[h])).join(','))
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
@@ -274,21 +294,21 @@ const ExtractionResults = memo(function ExtractionResults({
                       {result.fileName}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {result.fromCache && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                        Cached
-                      </span>
-                    )}
-                    <span className={`px-2 py-1 text-xs rounded-full ${getConfidenceColor(result.confidence)}`}>
-                      {result.confidence}%
-                    </span>
-                  </div>
+                                <div className="flex items-center space-x-2">
+                                  {result.fromCache && (
+                                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                      Cached
+                                    </span>
+                                  )}
+                                  <span className={`px-2 py-1 text-xs rounded-full ${isCompletedExtraction(result) ? getConfidenceColor(result.confidence) : 'text-gray-600 bg-gray-100'}`}>
+                                    {isCompletedExtraction(result) ? `${result.confidence}%` : '—'}
+                                  </span>
+                                </div>
                 </div>
 
                 <div className="flex items-center justify-between text-sm text-gray-500">
                   <span>{new Date(result.createdAt).toLocaleString()}</span>
-                  <span>{result.processingTime}ms</span>
+                  <span>{isCompletedExtraction(result) ? `${result.processingTime}ms` : '—'}</span>
                 </div>
               </div>
 
@@ -296,27 +316,34 @@ const ExtractionResults = memo(function ExtractionResults({
               <div className="p-4">
                 <div className="space-y-2">
                   {/* Attribute Stats */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Attributes Extracted:</span>
-                    <span className="font-medium">
-                      {Object.values(result.attributes).filter(attr => attr.value !== null).length}/
-                      {Object.keys(result.attributes).length}
-                    </span>
-                  </div>
-
-                  {/* Token Usage */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Tokens Used:</span>
-                    <span className="font-medium">{result.tokensUsed.toLocaleString()}</span>
-                  </div>
-
-                  {/* Error Message */}
-                  {result.error && (
-                    <div className="flex items-start space-x-2 p-2 bg-red-50 rounded-md">
-                      <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm text-red-700">{result.error}</span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Attributes Extracted:</span>
+                      <span className="font-medium">
+                          {isCompletedExtraction(result) ? Object.values(result.attributes).filter((attr) => {
+                            if (!attr || typeof attr !== 'object') return false
+                            const maybe = attr as AttributeDetail
+                            return maybe.value !== null
+                          }).length : 0}/
+                          {isCompletedExtraction(result) ? Object.keys(result.attributes).length : 0}
+                        </span>
                     </div>
-                  )}
+
+                    {/* Token Usage */}
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Tokens Used:</span>
+                      <span className="font-medium">{isCompletedExtraction(result) ? result.tokensUsed.toLocaleString() : '—'}</span>
+                    </div>
+
+                    {/* Error Message */}
+                    {result.status === 'failed' && (() => {
+                      const failed = result as import('@/types/fashion').FailedExtractionResult
+                      return failed.error ? (
+                        <div className="flex items-start space-x-2 p-2 bg-red-50 rounded-md">
+                          <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                          <span className="text-sm text-red-700">{failed.error}</span>
+                        </div>
+                      ) : null
+                    })()}
                 </div>
               </div>
 
@@ -422,7 +449,7 @@ const ResultDetailModal = memo(function ResultDetailModal({
             {/* Basic Info */}
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Basic Information</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">File Name:</span>
                   <span className="ml-2 font-medium">{result.fileName}</span>
@@ -431,18 +458,22 @@ const ResultDetailModal = memo(function ResultDetailModal({
                   <span className="text-gray-600">Status:</span>
                   <span className="ml-2 font-medium">{result.status}</span>
                 </div>
-                <div>
-                  <span className="text-gray-600">Confidence:</span>
-                  <span className="ml-2 font-medium">{result.confidence}%</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Processing Time:</span>
-                  <span className="ml-2 font-medium">{result.processingTime}ms</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Tokens Used:</span>
-                  <span className="ml-2 font-medium">{result.tokensUsed.toLocaleString()}</span>
-                </div>
+                {isCompletedExtraction(result) && (
+                  <>
+                    <div>
+                      <span className="text-gray-600">Confidence:</span>
+                      <span className="ml-2 font-medium">{result.confidence}%</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Processing Time:</span>
+                      <span className="ml-2 font-medium">{result.processingTime}ms</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Tokens Used:</span>
+                      <span className="ml-2 font-medium">{result.tokensUsed.toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
                 <div>
                   <span className="text-gray-600">Created:</span>
                   <span className="ml-2 font-medium">
@@ -456,37 +487,40 @@ const ResultDetailModal = memo(function ResultDetailModal({
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Extracted Attributes</h4>
               <div className="space-y-2">
-                {Object.entries(result.attributes).map(([key, detail]) => (
-                  <div
-                    key={key}
-                    className={`p-3 rounded-md border ${
-                      detail.value 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-gray-50 border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-sm">{detail.fieldLabel}</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        detail.confidence >= 80 
-                          ? 'bg-green-100 text-green-800'
-                          : detail.confidence >= 60
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {detail.confidence}%
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-900">
-                      <strong>Value:</strong> {detail.value || 'Not detected'}
-                    </div>
-                    {detail.reasoning && (
-                      <div className="text-xs text-gray-600 mt-1">
-                        <strong>Reasoning:</strong> {detail.reasoning}
+                {isCompletedExtraction(result) && Object.entries(result.attributes).map(([key, detailRaw]) => {
+                  const detail = detailRaw as AttributeDetail
+                  return (
+                    <div
+                      key={key}
+                      className={`p-3 rounded-md border ${
+                        detail.value 
+                          ? 'bg-green-50 border-green-200' 
+                          : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">{detail.fieldLabel}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          detail.confidence >= 80 
+                            ? 'bg-green-100 text-green-800'
+                            : detail.confidence >= 60
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {detail.confidence}%
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <div className="text-sm text-gray-900">
+                        <strong>Value:</strong> {detail.value || 'Not detected'}
+                      </div>
+                      {detail.reasoning && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          <strong>Reasoning:</strong> {detail.reasoning}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -496,4 +530,4 @@ const ResultDetailModal = memo(function ResultDetailModal({
   )
 })
 
-export default ExtractionResult
+export default ExtractionResults

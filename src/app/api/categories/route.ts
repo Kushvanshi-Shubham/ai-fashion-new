@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 
 // Response cache
-let cachedResponse: { data: any, timestamp: number } | null = null
+import type { CategoryListResponse } from '@/types/fashion'
+
+let cachedResponse: { data: CategoryListResponse, timestamp: number } | null = null
 const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
 
 export async function GET(request: Request) {
@@ -29,17 +31,29 @@ export async function GET(request: Request) {
     const { CATEGORY_DEFINITIONS } = await import('../../../data/categoryDefinitions')
     
     // Apply filters
-    let filteredCategories = CATEGORY_DEFINITIONS
+    type CategoryRaw = {
+      id: string
+      displayName: string
+      description?: string
+      department: string
+      subDepartment: string
+      isActive?: boolean
+      attributes?: Record<string, unknown>
+      createdAt?: string
+    }
+
+  // CATEGORY_DEFINITIONS may have richer types (Date etc.) — cast via unknown to our narrow view
+  let filteredCategories = (CATEGORY_DEFINITIONS as unknown) as CategoryRaw[]
 
     if (department) {
-      filteredCategories = filteredCategories.filter((cat: any) => 
+      filteredCategories = filteredCategories.filter((cat) => 
         cat.department.toLowerCase() === department.toLowerCase()
       )
     }
 
     if (search) {
       const searchLower = search.toLowerCase()
-      filteredCategories = filteredCategories.filter((cat: any) =>
+      filteredCategories = filteredCategories.filter((cat) =>
         cat.displayName.toLowerCase().includes(searchLower) ||
         cat.id.toLowerCase().includes(searchLower) ||
         cat.department.toLowerCase().includes(searchLower) ||
@@ -52,9 +66,9 @@ export async function GET(request: Request) {
     const paginatedCategories = filteredCategories.slice(offset, offset + limit)
 
     // Format response efficiently
-    const formattedCategories = paginatedCategories.map((cat: any) => {
-      const enabledCount = Object.values(cat.attributes).filter(Boolean).length
-      const totalCount = Object.keys(cat.attributes).length
+    const formattedCategories = paginatedCategories.map((cat) => {
+      const enabledCount = Object.values(cat.attributes ?? {}).filter(Boolean).length
+      const totalCount = Object.keys(cat.attributes ?? {}).length
 
       return {
         id: cat.id,
@@ -78,13 +92,13 @@ export async function GET(request: Request) {
       limit,
       hasMore: (offset + limit) < total,
       byDepartment: {
-        KIDS: filteredCategories.filter((c: any) => c.department === 'KIDS').length,
-        MENS: filteredCategories.filter((c: any) => c.department === 'MENS').length,
-        LADIES: filteredCategories.filter((c: any) => c.department === 'LADIES').length
+        KIDS: filteredCategories.filter((c) => c.department === 'KIDS').length,
+        MENS: filteredCategories.filter((c) => c.department === 'MENS').length,
+        LADIES: filteredCategories.filter((c) => c.department === 'LADIES').length
       },
       avgAttributesPerCategory: Math.round(
-        filteredCategories.reduce((sum: number, cat: any) => 
-          sum + Object.values(cat.attributes).filter(Boolean).length, 0
+        filteredCategories.reduce((sum: number, cat) => 
+          sum + Object.values(cat.attributes ?? {}).filter(Boolean).length, 0
         ) / Math.max(filteredCategories.length, 1)
       )
     }
@@ -117,7 +131,7 @@ export async function GET(request: Request) {
     // Cache basic response (no filters)
     if (!department && !search && offset === 0 && limit === 50) {
       cachedResponse = {
-        data: response,
+        data: response.data,
         timestamp: Date.now()
       }
     }
@@ -125,13 +139,13 @@ export async function GET(request: Request) {
     console.log(`📊 Categories loaded: ${formattedCategories.length}/${total} (${Date.now() - startTime}ms)`)
     return NextResponse.json(response)
 
-  } catch (error) {
-    console.error('Categories API error:', error)
+  } catch (_error) {
+    console.error('Categories API error:', _error)
     
     return NextResponse.json({
       success: false,
       error: 'Failed to load categories',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      details: _error instanceof Error ? _error.message : 'Unknown error',
       processingTime: Date.now() - startTime,
       code: 'CATEGORIES_LOAD_ERROR'
     }, { status: 500 })
@@ -152,7 +166,7 @@ export async function HEAD() {
         'X-API-Version': '2.0.0'
       }
     })
-  } catch (error) {
+  } catch {
     return new NextResponse(null, { status: 500 })
   }
 }

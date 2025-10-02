@@ -1,5 +1,5 @@
 import sharp from 'sharp'
-import { FileValidator, FileValidationOptions } from './file-validation'
+import { FileValidator, FileValidationOptions } from '@/lib/file-validation'
 
 export interface ImageValidationOptions extends FileValidationOptions {
   maxDimension?: number
@@ -113,11 +113,11 @@ export async function validateImage(
       }
     }
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('sharp processing error:', msg)
     return {
       valid: false,
-      error: error instanceof Error 
-        ? `Image processing failed: ${error.message}`
-        : 'Invalid or corrupted image file'
+      error: `Image processing failed: ${msg}`
     }
   }
 }

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Settings, BarChart3 } from 'lucide-react'
 import { Category } from '@/types'
 import CategoryCard from '@/components/CategoryCard'
-import { CategoryFormData } from '@/types/fashion'
+import { CategoryFormData } from '@/types'
 
 export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
@@ -112,9 +112,12 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Attributes</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                      {categories.reduce((acc, cat) => acc + (cat.attributes?.length || 0), 0)}
-                    </p>
+                              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                                {categories.reduce((acc, cat) => {
+                                  // `Category` type in this app uses `totalAttributes`/`enabledAttributes` fields
+                                  return acc + (typeof cat.totalAttributes === 'number' ? cat.totalAttributes : 0)
+                                }, 0)}
+                              </p>
                   </div>
                   <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
                     <Plus className="w-6 h-6 text-purple-600 dark:text-purple-400" />
@@ -139,7 +142,7 @@ export default function AdminPage() {
                   <CategoryCard
                     key={category.id}
                     category={category}
-                    isSelected={selectedCategory?.id === category.id}
+                    isSelected={selectedCategory?.categoryId === category.id}
                     onSelect={(c) => setSelectedCategory(c)}
                   />
                 ))}

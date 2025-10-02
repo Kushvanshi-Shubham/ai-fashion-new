@@ -1,14 +1,22 @@
 'use client'
 import React, { useCallback, useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, X, Image as ImageIcon, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 
-interface ImageFile extends File {
+// Accept either a plain shape used by this component or the store's UploadedImage which
+// stores the original File object under `.file`.
+interface ImageFile {
   id: string
+  // Either top-level name/size/type or nested in `file`
+  name?: string
+  size?: number
+  type?: string
+  file?: File
   preview: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
-  error?: string
+  error?: string | undefined
 }
 
 interface ImageUploadProps {
@@ -42,7 +50,7 @@ export default function ImageUpload({
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLDivElement>(null)
 
-  // Handle drag events
+  // Drag handlers
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -52,32 +60,6 @@ export default function ImageUpload({
       setDragActive(false)
     }
   }, [])
-
-  // Handle drop
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-
-    if (disabled) return
-
-    const files = Array.from(e.dataTransfer.files)
-    handleFiles(files)
-  }, [disabled])
-
-  // Handle file input change
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    if (disabled) return
-
-    const files = Array.from(e.target.files || [])
-    handleFiles(files)
-
-    // Reset input
-    if (inputRef.current) {
-      inputRef.current.value = ''
-    }
-  }, [disabled])
 
   // Process and validate files
   const handleFiles = useCallback((files: File[]) => {
@@ -131,6 +113,32 @@ export default function ImageUpload({
     }
   }, [existingFiles, maxFiles, acceptedTypes, maxSize, onFilesSelected])
 
+  // Handle drop
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (disabled) return
+
+    const files = Array.from(e.dataTransfer.files)
+    handleFiles(files)
+  }, [disabled, handleFiles])
+
+  // Handle file input change
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    if (disabled) return
+
+    const files = Array.from(e.target.files || [])
+    handleFiles(files)
+
+    // Reset input
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
+  }, [disabled, handleFiles])
+
   // Clear errors after 5 seconds
   useEffect(() => {
     if (errors.length > 0) {
@@ -149,19 +157,25 @@ export default function ImageUpload({
   // Remove file
   const handleRemoveFile = useCallback((id: string, preview: string) => {
     // Clean up object URL
-    URL.revokeObjectURL(preview)
+    try {
+      if (preview) URL.revokeObjectURL(preview)
+    } catch {
+      // noop
+    }
     onRemoveFile?.(id)
   }, [onRemoveFile])
 
-  // Cleanup on unmount
+  // Capture previews present when the component mounts and revoke them on unmount.
+  // This avoids revoking previews that may be added/managed by the parent/store later.
   useEffect(() => {
+    const previews = existingFiles.map(f => f.preview).filter(Boolean) as string[]
     return () => {
-      existingFiles.forEach(file => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview)
-        }
+      previews.forEach(p => {
+        try { URL.revokeObjectURL(p) } catch { /* ignore */ }
       })
     }
+    // Intentionally run only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const getStatusIcon = (status: ImageFile['status']) => {
@@ -304,11 +318,13 @@ export default function ImageUpload({
                 >
                   {/* Image Preview */}
                   <div className="aspect-square relative">
-                    <img
+                    <Image
                       src={file.preview}
-                      alt={file.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
+                      alt={file.name ?? file.file?.name ?? 'image'}
+                      fill
+                      style={{ objectFit: 'cover' }}
+                      unoptimized
+                      sizes="100vw"
                     />
                     
                     {/* Status Overlay */}
@@ -343,11 +359,11 @@ export default function ImageUpload({
 
                   {/* File Info */}
                   <div className="p-2">
-                    <p className="text-xs font-medium text-gray-700 truncate" title={file.name}>
-                      {file.name}
+                      <p className="text-xs font-medium text-gray-700 truncate" title={file.name ?? file.file?.name}>
+                      {file.name ?? file.file?.name}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {Math.round(file.size / 1024)} KB
+                      {Math.round((file.size ?? file.file?.size ?? 0) / 1024)} KB
                     </p>
                     
                     {file.error && (

@@ -235,7 +235,7 @@ export interface UseExtractionReturn {
 export interface ExtractorError extends Error {
   code?: string
   status?: number
-  details?: any
+  details?: Record<string, unknown> | undefined
 }
 
 // Configuration types
@@ -247,4 +247,17 @@ export interface ExtractorConfig {
   retryAttempts: number
   cacheEnabled: boolean
   cacheTTL: number
+}
+
+// Type guards for narrowing ExtractionResult unions
+export function isCompletedExtraction(result: ExtractionResult): result is CompletedExtractionResult {
+  return result.status === 'completed'
+}
+
+export function isProcessingExtraction(result: ExtractionResult): result is ProcessingExtractionResult {
+  return result.status === 'processing'
+}
+
+export function isFailedExtraction(result: ExtractionResult): result is FailedExtractionResult {
+  return result.status === 'failed'
 }

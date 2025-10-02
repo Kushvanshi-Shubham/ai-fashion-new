@@ -6,6 +6,7 @@ import { Sparkles, Zap, Shield, BarChart3, Upload, Brain, Clock } from 'lucide-r
 import dynamic from 'next/dynamic'
 import { useExtraction } from '@/hooks/useExtraction'
 import { useCategoryManagement } from '@/hooks/useExtraction'
+import { isCompletedExtraction, ExtractionResult, CategoryFormData } from '@/types/fashion'
 
 // Dynamically import heavy components to improve initial load
 const CategoryCard = dynamic(() => import('@/components/CategoryCard'), {
@@ -87,8 +88,10 @@ export default function HomePage() {
     clearError()
   }
 
-  // Handle category selection
-  const handleCategorySelect = (category: any) => {
+  type MaybeCategory = Partial<CategoryFormData> & { id?: string; categoryId?: string; categoryName?: string }
+
+  // Handle category selection (receives full CategoryFormData from CategoryCard)
+  const handleCategorySelect = (category: CategoryFormData) => {
     selectCategory(category)
     clearError()
   }
@@ -114,16 +117,21 @@ export default function HomePage() {
   }
 
   // Handle file download
-  const handleDownloadResult = (result: any) => {
-    const data = {
+  const handleDownloadResult = (result: ExtractionResult) => {
+    const base = {
       fileName: result.fileName,
       status: result.status,
-      confidence: result.confidence,
-      attributes: result.attributes,
-      processingTime: result.processingTime,
-      tokensUsed: result.tokensUsed,
       createdAt: result.createdAt
     }
+
+    const completedFields = result.status === 'completed' ? {
+      confidence: typeof result.confidence === 'number' ? result.confidence : undefined,
+      attributes: result.attributes ?? {},
+      processingTime: typeof result.processingTime === 'number' ? result.processingTime : undefined,
+      tokensUsed: typeof result.tokensUsed === 'number' ? result.tokensUsed : undefined
+    } : {}
+
+    const data = { ...base, ...completedFields }
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { 
       type: 'application/json' 
@@ -172,7 +180,7 @@ export default function HomePage() {
                 {stats.completed > 0 && (
                   <div className="text-center">
                     <div className="text-lg font-semibold text-blue-600">
-                      {Math.round(stats.completed > 0 ? results.reduce((sum, r) => sum + r.confidence, 0) / stats.completed : 0)}%
+                      {Math.round(stats.completed > 0 ? results.filter((r) => r.status === 'completed').reduce((sum, r) => sum + (isCompletedExtraction(r) ? r.confidence : 0), 0) / stats.completed : 0)}%
                     </div>
                     <div className="text-gray-500">Avg Confidence</div>
                   </div>
@@ -301,9 +309,8 @@ export default function HomePage() {
                     progress: img.progress,
                     error: img.error
                   }))}
-                  onRemoveFile={(id) => {
-                    // Handle remove through store
-                    // This would be implemented in the store
+                  onRemoveFile={() => {
+                    // TODO: wire up to store's removeImage(id) once exposed by the hook
                   }}
                 />
               </Suspense>
@@ -407,15 +414,19 @@ export default function HomePage() {
                       ))}
                     </div>
                   }>
-                    {categories.map((category) => (
-                      <CategoryCard
-                        key={category.id}
-                        category={category}
-                        isSelected={selectedCategory?.categoryId === category.id}
-                        onSelect={handleCategorySelect}
-                        disabled={isProcessing}
-                      />
-                    ))}
+                    {categories.map((category) => {
+                      const maybe = category as MaybeCategory
+                      const key = maybe.id ?? maybe.categoryId ?? Math.random().toString(36).slice(2, 8)
+                      return (
+                        <CategoryCard
+                          key={key}
+                          category={category as Partial<CategoryFormData>}
+                          isSelected={selectedCategory?.categoryId === (maybe.id ?? maybe.categoryId)}
+                          onSelect={(cat: CategoryFormData) => handleCategorySelect(cat)}
+                          disabled={isProcessing}
+                        />
+                      )
+                    })}
                   </Suspense>
                 </div>
               )}

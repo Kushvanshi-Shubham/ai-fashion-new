@@ -74,11 +74,16 @@ async function main() {
       let parentDept = 'KIDS' // default
       if (subCode.startsWith('M')) parentDept = 'MENS'
       if (subCode.startsWith('L')) parentDept = 'LADIES'
-      
+      const parentId = deptMap[parentDept]
+      if (!parentId) {
+        console.warn(`Parent department id missing for ${parentDept}, skipping sub-dept ${subCode}`)
+        continue
+      }
+
       const created = await prisma.subDepartment.upsert({
         where: {
           departmentId_code: {
-            departmentId: deptMap[parentDept],
+            departmentId: parentId,
             code: subCode
           }
         },
@@ -86,7 +91,7 @@ async function main() {
         create: {
           code: subCode,
           name: subCode,
-          departmentId: deptMap[parentDept]
+          departmentId: parentId
         }
       })
       subDeptMap[subCode] = created.id
@@ -95,12 +100,13 @@ async function main() {
     
     // Step 3: Import categories FAST
     console.log('\n🏷️  Phase 3: Importing Categories...')
-    const { CATEGORY_DEFINITIONS } = await import('../src/data/categoryDefinitions')
+  const { CATEGORY_DEFINITIONS } = await import('../src/data/categoryDefinitions')
+
+  let catCount = 0
+  let mappingCount = 0
     
-    let catCount = 0
-    let mappingCount = 0
-    
-    for (const categoryData of CATEGORY_DEFINITIONS as any[]) {
+    for (const categoryDataRaw of (CATEGORY_DEFINITIONS as unknown[])) {
+      const categoryData: any = categoryDataRaw
       try {
         // Find sub-department ID
         const subDeptId = subDeptMap[categoryData.subDepartment]
@@ -131,7 +137,7 @@ async function main() {
         catCount++
         
         // Create attribute mappings (your true/false system)
-        for (const [attributeKey, isEnabled] of Object.entries(categoryData.attributes)) {
+  for (const [attributeKey, isEnabled] of Object.entries(categoryData.attributes || {})) {
           const masterAttribute = await prisma.masterAttribute.findUnique({
             where: { key: attributeKey }
           })
@@ -152,7 +158,7 @@ async function main() {
                 isRequired: false
               }
             })
-            mappingCount++
+              mappingCount++
           }
         }
         
@@ -185,6 +191,7 @@ async function main() {
     console.log(`   • Master Attributes: ${finalAttrCount}`)
     console.log(`   • Categories: ${finalCatCount}`)
     console.log(`   • Attribute Mappings: ${finalMappingCount}`)
+  console.log(`   • Local mapping count: ${mappingCount}`)
     
     console.log('\n🎉 Your complete fashion dataset is ready!')
     console.log('🚀 Next: Test the API endpoints and build your AI system!')

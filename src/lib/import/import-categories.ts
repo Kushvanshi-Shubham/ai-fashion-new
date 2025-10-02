@@ -114,7 +114,10 @@ export class CategoryImporter {
       if (!deptStructure[cat.department]) {
         deptStructure[cat.department] = new Set()
       }
-      deptStructure[cat.department].add(cat.subDepartment)
+      if (cat.subDepartment) {
+        const set = deptStructure[cat.department]
+        if (set) set.add(cat.subDepartment)
+      }
     })
     
     const departmentNames: Record<string, string> = {

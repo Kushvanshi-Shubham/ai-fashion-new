@@ -2,13 +2,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params
   try {
+    const id = params.id
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Missing extraction id' }, { status: 400 })
+    }
+
     const extraction = await prisma.extraction.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         category: {
           select: {
@@ -50,13 +53,13 @@ export async function GET(
         requestId: crypto.randomUUID()
       }
     })
-  } catch (error) {
-    console.error('Extraction fetch error:', error)
+  } catch (_error) {
+    console.error('Extraction fetch error:', _error)
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to fetch extraction',
-        details: error instanceof Error ? error.message : 'Unknown error',
+  error: 'Failed to fetch extraction',
+  details: _error instanceof Error ? _error.message : 'Unknown error',
         metadata: {
           timestamp: new Date().toISOString(),
           requestId: crypto.randomUUID()

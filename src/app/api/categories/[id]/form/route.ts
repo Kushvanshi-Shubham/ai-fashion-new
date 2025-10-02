@@ -19,10 +19,8 @@ const limiter = rateLimit({
   blockDuration: 120 * 1000 // 2 minutes
 })
 
-export async function GET(this: any, 
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(this: unknown, request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params
   try {
     // Apply rate limiting
     await limiter.check(request, 'CATEGORY_API') // 60 requests per minute
@@ -32,6 +30,10 @@ export async function GET(this: any,
 
   // Validate category ID
   const categoryId = params.id
+  if (!categoryId) {
+    return NextResponse.json({ success: false, error: 'Missing category id', code: 'MISSING_CATEGORY_ID' }, { status: 400 })
+  }
+
   if (!categoryId.match(/^[a-zA-Z0-9_-]+$/)) {
     return NextResponse.json({
       success: false,
@@ -161,13 +163,13 @@ export async function GET(this: any,
       }
     })
 
-  } catch (error) {
-    console.error(`❌ Category loading failed for ${categoryId}:`, error)
+  } catch (_error) {
+    console.error(`❌ Category loading failed for ${categoryId}:`, _error)
 
     return NextResponse.json({
       success: false,
       error: 'Failed to load category configuration',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      details: _error instanceof Error ? _error.message : 'Unknown error',
       categoryId,
       processingTime: Date.now() - startTime,
       code: 'CATEGORY_LOAD_ERROR'
@@ -175,13 +177,9 @@ export async function GET(this: any,
   }
 }
 
-// Cleanup expired cache entries
-
 // Health check endpoint
-export async function HEAD(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function HEAD(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params
   const categoryId = params.id
   
   try {

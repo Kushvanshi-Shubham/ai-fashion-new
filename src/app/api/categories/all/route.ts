@@ -6,13 +6,14 @@ export async function GET() {
     const { CATEGORY_DEFINITIONS } = await import('../../../../data/categoryDefinitions')
     
     // Return simplified list with just essential info
-    const simplifiedCategories = CATEGORY_DEFINITIONS.map((cat: any) => ({
+    type CategoryRaw = { id: string; displayName: string; department: string; subDepartment: string; isActive?: boolean; attributes?: Record<string, unknown> }
+    const simplifiedCategories = (CATEGORY_DEFINITIONS as CategoryRaw[]).map((cat) => ({
       id: cat.id,
       name: cat.displayName,
       department: cat.department,
       subDepartment: cat.subDepartment,
       isActive: cat.isActive,
-      enabledAttributes: Object.values(cat.attributes).filter(Boolean).length
+      enabledAttributes: Object.values(cat.attributes ?? {}).filter(Boolean).length
     }))
     
     // Group by department

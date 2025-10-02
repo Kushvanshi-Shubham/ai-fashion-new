@@ -3,7 +3,8 @@ import { CategoryFormData, ExtractionResult } from '@/types/fashion'
 
 interface ExtractionContextState {
   selectedCategory: CategoryFormData | null
-  extractions: ExtractionResult[]
+  // allow partial ExtractionResult properties due to exactOptionalPropertyTypes
+  extractions: (Partial<ExtractionResult> & { id: string })[]
   isProcessing: boolean
   error: string | null
 }

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
-import { ExtractionResult, CategoryFormData, CompletedExtractionResult, FailedExtractionResult } from '@/types/fashion'
-import { useMemo } from 'react'
+import { ExtractionResult, CategoryFormData, CompletedExtractionResult, FailedExtractionResult, isCompletedExtraction } from '@/types'
 
 interface UploadedImage {
   id: string
@@ -9,8 +8,8 @@ interface UploadedImage {
   preview: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
-  error?: string
-  result?: ExtractionResult
+  error?: string | undefined
+  result?: ExtractionResult | undefined
 }
 
 interface ExtractionStats {
@@ -80,7 +79,7 @@ const initialStats: ExtractionStats = {
   processingTime: 0
 }
 
-const initialSettings = {
+const initialSettings: ExtractionSettings = {
   batchProcessing: true,
   maxConcurrentProcessing: 3,
   autoRetry: false,
@@ -98,12 +97,9 @@ export const useExtractionStore = create<ExtractionState>()(
         isProcessing: false,
         currentProgress: 0,
         
-        // Add memoization
-        getFilteredResults: (filter: string) => {
-          const results = get().results
-          return useMemo(() => {
-            return results.filter(r => r.status === filter)
-          }, [results, filter])
+        // Filter helper (not a React hook)
+        getFilteredResults: (filter: UploadedImage['status']) => {
+          return get().results.filter(r => r.status === filter)
         },
         error: null,
         stats: initialStats,
@@ -118,6 +114,14 @@ export const useExtractionStore = create<ExtractionState>()(
           if (current && category && current.categoryId !== category.categoryId) {
             get().clearImages()
           }
+        },
+
+        // Type guard helpers
+        isCompleted: (result: ExtractionResult): result is CompletedExtractionResult => {
+          return isCompletedExtraction(result)
+        },
+        isFailed: (result: ExtractionResult): result is FailedExtractionResult => {
+          return result.status === 'failed'
         },
 
         // Add images with validation and preview generation
@@ -140,19 +144,19 @@ export const useExtractionStore = create<ExtractionState>()(
               return null
             }
             
+            const id = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`
+            const preview = URL.createObjectURL(file)
             return {
-              id: crypto.randomUUID(),
+              id,
               file,
-              preview: URL.createObjectURL(file),
+              preview,
               status: 'pending' as const,
-              progress: 0
+              progress: 0,
+              error: undefined
             }
           }).filter(Boolean) as UploadedImage[]
           
-          set({
-            uploadedImages: [...currentImages, ...newImages],
-            error: null
-          })
+          set({ uploadedImages: [...currentImages, ...newImages], error: null })
         },
 
         // Remove single image
@@ -199,7 +203,6 @@ export const useExtractionStore = create<ExtractionState>()(
           const images = get().uploadedImages
           const totalProgress = images.reduce((sum, img) => sum + img.progress, 0)
           const averageProgress = images.length > 0 ? totalProgress / images.length : 0
-          
           set({ currentProgress: averageProgress })
         },
 
@@ -255,24 +258,48 @@ export const useExtractionStore = create<ExtractionState>()(
             get().updateImageStatus(image.id, 'processing', 70)
             
             const result = await response.json()
-            
+
             if (!result.success) {
               throw new Error(result.error || 'Extraction failed')
             }
-            
-            // Create extraction result
-            const extractionResult: ExtractionResult = {
-              id: result.data.extraction.id,
-              fileName: image.file.name,
-              status: 'completed',
-              attributes: result.data.extraction.attributes,
-              confidence: result.data.extraction.confidence,
-              tokensUsed: result.data.performance.tokensUsed,
-              processingTime: result.data.performance.aiProcessingTime,
-              createdAt: result.data.timestamp,
-              fromCache: result.data.extraction.fromCache
+
+            // Guard the API response shape and only access completed-only fields when the API indicates completion.
+            const extraction = result.data?.extraction ?? {}
+            const performance = result.data?.performance ?? {}
+            const extractionStatus = extraction.status as string | undefined
+
+            let extractionResult: ExtractionResult
+
+            if (extractionStatus === 'completed') {
+              extractionResult = {
+                id: extraction.id,
+                fileName: image.file.name,
+                status: 'completed',
+                attributes: extraction.attributes ?? {},
+                confidence: typeof extraction.confidence === 'number' ? extraction.confidence : 0,
+                tokensUsed: typeof performance.tokensUsed === 'number' ? performance.tokensUsed : 0,
+                processingTime: typeof performance.aiProcessingTime === 'number' ? performance.aiProcessingTime : (performance.processingTime ?? 0),
+                createdAt: result.data?.timestamp ?? new Date().toISOString(),
+                fromCache: !!extraction.fromCache
+              }
+            } else if (extractionStatus === 'failed') {
+              extractionResult = {
+                id: extraction.id ?? `${Date.now().toString(36)}`,
+                fileName: image.file.name,
+                status: 'failed',
+                error: extraction.error || 'Extraction failed',
+                createdAt: result.data?.timestamp ?? new Date().toISOString()
+              }
+            } else {
+              // pending / processing
+              extractionResult = {
+                id: extraction.id ?? `${Date.now().toString(36)}`,
+                fileName: image.file.name,
+                status: (extractionStatus as 'pending' | 'processing') ?? 'processing',
+                createdAt: result.data?.timestamp ?? new Date().toISOString()
+              }
             }
-            
+
             get().setImageResult(image.id, extractionResult)
             
           } catch (error) {
@@ -330,20 +357,31 @@ export const useExtractionStore = create<ExtractionState>()(
         // Update statistics
         updateStats: (result) => {
           const currentStats = get().stats
-          const isSuccess = result.status === 'completed'
-          
+          const isSuccess = isCompletedExtraction(result)
+
+          const totalExtractions = currentStats.totalExtractions + 1
+          const successfulExtractions = currentStats.successfulExtractions + (isSuccess ? 1 : 0)
+          const failedExtractions = currentStats.failedExtractions + (isSuccess ? 0 : 1)
+
+          // Safely compute average confidence only when result is completed
+          const averageConfidence = isSuccess
+            ? (currentStats.averageConfidence * currentStats.successfulExtractions + (typeof result.confidence === 'number' ? result.confidence : 0)) / (currentStats.successfulExtractions + 1)
+            : currentStats.averageConfidence
+
+          const totalTokensUsed = currentStats.totalTokensUsed + (isSuccess ? (typeof result.tokensUsed === 'number' ? result.tokensUsed : 0) : 0)
+          const totalCost = currentStats.totalCost + (isSuccess ? ((typeof result.tokensUsed === 'number' ? result.tokensUsed : 0) * 0.00015) : 0)
+          const processingTime = currentStats.processingTime + (isSuccess ? (typeof result.processingTime === 'number' ? result.processingTime : 0) : 0)
+
           const newStats: ExtractionStats = {
-            totalExtractions: currentStats.totalExtractions + 1,
-            successfulExtractions: currentStats.successfulExtractions + (isSuccess ? 1 : 0),
-            failedExtractions: currentStats.failedExtractions + (isSuccess ? 0 : 1),
-            averageConfidence: isSuccess 
-              ? (currentStats.averageConfidence * currentStats.successfulExtractions + result.confidence) / (currentStats.successfulExtractions + 1)
-              : currentStats.averageConfidence,
-            totalTokensUsed: currentStats.totalTokensUsed + result.tokensUsed,
-            totalCost: currentStats.totalCost + (result.tokensUsed * 0.00015), // Approximate cost
-            processingTime: currentStats.processingTime + result.processingTime
+            totalExtractions,
+            successfulExtractions,
+            failedExtractions,
+            averageConfidence,
+            totalTokensUsed,
+            totalCost,
+            processingTime
           }
-          
+
           set({ stats: newStats })
         },
 
@@ -373,62 +411,30 @@ export const useExtractionStore = create<ExtractionState>()(
             stats: initialStats
           })
         }
-      }),
-      {
-        name: 'extraction-store',
-        version: 1
-      }
-    )
+      })
+    ),
+    { name: 'extraction-store' }
   )
 )
-
 // Custom hook for extraction selectors
 export const useExtractionSelectors = () => {
   const store = useExtractionStore()
-  
+
   return {
-    // Basic selectors
     selectedCategory: store.selectedCategory,
     uploadedImages: store.uploadedImages,
     results: store.results,
     isProcessing: store.isProcessing,
     error: store.error,
-    
-    // Computed selectors
-    pendingImages: store.uploadedImages.filter(
-      (img): img is UploadedImage & { status: 'pending' } => 
-      img.status === 'pending'
-    ),
-    
-    processingImages: store.uploadedImages.filter(
-      (img): img is UploadedImage & { status: 'processing' } => 
-      img.status === 'processing'
-    ),
-    
-    completedImages: store.uploadedImages.filter(
-      (img): img is UploadedImage & { status: 'completed' } => 
-      img.status === 'completed'
-    ),
-    
-    failedImages: store.uploadedImages.filter(
-      (img): img is UploadedImage & { status: 'failed' } => 
-      img.status === 'failed'
-    ),
-    
-    // Stats selectors
+    pendingImages: store.uploadedImages.filter((i) => i.status === 'pending'),
+    processingImages: store.uploadedImages.filter((i) => i.status === 'processing'),
+    completedImages: store.uploadedImages.filter((i) => i.status === 'completed'),
+    failedImages: store.uploadedImages.filter((i) => i.status === 'failed'),
     stats: {
-      successRate: (() => {
-        const total = store.stats.totalExtractions
-        return total > 0 ? (store.stats.successfulExtractions / total) * 100 : 0
-      })(),
-      
-      averageProcessingTime: (() => {
-        const total = store.stats.totalExtractions
-        return total > 0 ? store.stats.processingTime / total : 0
-      })()
+      successRate: store.stats.totalExtractions > 0 ? (store.stats.successfulExtractions / store.stats.totalExtractions) * 100 : 0,
+      averageProcessingTime: store.stats.totalExtractions > 0 ? store.stats.processingTime / store.stats.totalExtractions : 0
     }
   }
-}
 }
 
 // Cleanup on page unload

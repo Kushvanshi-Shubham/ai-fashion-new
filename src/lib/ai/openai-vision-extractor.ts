@@ -20,6 +20,25 @@ interface AttributeExtractionResult {
   reasoning?: string
 }
 
+// Local narrow types to avoid `any` in function signatures
+type LocalAttributeConfig = {
+  attribute: {
+    key: string
+    allowedValues?: unknown
+    aiPromptHint?: string | null
+    description?: string | null
+  }
+}
+
+type LocalCategory = {
+  subDepartment?: { name?: string; department?: { name?: string } } | null
+  displayName?: string | null
+  attributeConfigs?: LocalAttributeConfig[] | null
+}
+
+type OpenAIChoice = { message?: { content?: string } }
+type OpenAIResponse = { choices?: OpenAIChoice[]; usage?: { total_tokens?: number } }
+
 export class OpenAIVisionExtractor {
   static async extractAttributes(config: ExtractionConfig) {
     const startTime = Date.now()
@@ -72,10 +91,12 @@ export class OpenAIVisionExtractor {
         temperature: 0.1
       })
       
-      const aiResponse = response.choices?.message?.content
-      if (!aiResponse) {
-        throw new Error('No response from OpenAI')
-      }
+      // Guard for the expected response shape using a narrow type
+      const resp = response as unknown as OpenAIResponse
+      const first = resp.choices && resp.choices.length > 0 ? resp.choices[0] : undefined
+      const aiResponse = first && first.message && typeof first.message.content === 'string' ? first.message.content : undefined
+
+      if (!aiResponse) throw new Error('No response from OpenAI')
       
       // Parse AI response and map to your shortForm values
       const extractedAttributes = await this.parseAIResponse(
@@ -83,8 +104,13 @@ export class OpenAIVisionExtractor {
         category.attributeConfigs
       )
       
-      // Calculate overall confidence
-      const overallConfidence = this.calculateOverallConfidence(extractedAttributes)
+  // Calculate overall confidence (coerce to percentage 0-100)
+  const overallConfidence = this.calculateOverallConfidence(extractedAttributes)
+  const overallConfidencePercent = Math.round(Math.max(0, Math.min(100, overallConfidence * 100)))
+
+  // Safely read token usage from the OpenAI response
+  const respTyped = response as unknown as OpenAIResponse
+  const tokensUsed = respTyped && typeof respTyped.usage?.total_tokens === 'number' ? respTyped.usage!.total_tokens : 0
       
       // Save extraction to database
       const extraction = await prisma.extraction.create({
@@ -97,28 +123,30 @@ export class OpenAIVisionExtractor {
             response: aiResponse,
             model: "gpt-4-vision-preview"
           }),
-          confidence: overallConfidence,
+          confidence: overallConfidencePercent,
           aiModel: "gpt-4-vision-preview",
           promptVersion: "v1.0",
           processingTime: Date.now() - startTime,
-          tokenUsage: response.usage?.total_tokens || 0,
-          cost: this.calculateCost(response.usage?.total_tokens || 0),
+          tokenUsage: tokensUsed,
+          cost: this.calculateCost(tokensUsed),
           status: 'COMPLETED',
-          sessionId: config.sessionId
+          sessionId: config.sessionId ?? null
         }
       })
       
       return {
         extractionId: extraction.id,
         attributes: extractedAttributes,
-        confidence: overallConfidence,
-        processingTime: Date.now() - startTime
+        confidence: overallConfidencePercent,
+        processingTime: Date.now() - startTime,
+        tokensUsed
       }
       
-    } catch (error: any) {
-      console.error('Extraction failed:', error)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error('Extraction failed:', message)
       
-      // Save failed extraction
+      // Save failed extraction (store error message safely)
       await prisma.extraction.create({
         data: {
           imageUrl: config.imageUrl,
@@ -128,8 +156,8 @@ export class OpenAIVisionExtractor {
           aiModel: "gpt-4-vision-preview",
           processingTime: Date.now() - startTime,
           status: 'FAILED',
-          errorMessage: error.message,
-          sessionId: config.sessionId
+          errorMessage: message,
+          sessionId: config.sessionId ?? null
         }
       })
       
@@ -137,9 +165,9 @@ export class OpenAIVisionExtractor {
     }
   }
   
-  private static generateExtractionPrompt(category: any): string {
-    const enabledAttributes = category.attributeConfigs
-    const categoryInfo = `${category.subDepartment?.department?.name} > ${category.subDepartment?.name} > ${category.displayName}`
+  private static generateExtractionPrompt(category: LocalCategory | null): string {
+    const enabledAttributes = category?.attributeConfigs ?? []
+    const categoryInfo = `${category?.subDepartment?.department?.name ?? 'Unknown'} > ${category?.subDepartment?.name ?? 'Unknown'} > ${category?.displayName ?? 'Category'}`
     
     let prompt = `You are a professional fashion expert analyzing a ${categoryInfo} garment image.
 
@@ -147,7 +175,7 @@ Extract the following attributes from the image and return them in JSON format:
 
 `
     
-    enabledAttributes.forEach((config: any) => {
+    enabledAttributes.forEach((config) => {
       const attr = config.attribute
       prompt += `"${attr.key}": {
   "description": "${attr.aiPromptHint || attr.description}",
@@ -183,7 +211,7 @@ Analyze the image now:`
   
   private static async parseAIResponse(
     aiResponse: string, 
-    attributeConfigs: any[]
+    attributeConfigs: LocalAttributeConfig[]
   ): Promise<AttributeExtractionResult[]> {
     try {
       // Clean response and extract JSON
@@ -205,21 +233,26 @@ Analyze the image now:`
         if (rawValue && rawValue !== 'NOT_VISIBLE') {
           // Validate against allowed values
           const allowedValues = config.attribute.allowedValues 
-            ? JSON.parse(config.attribute.allowedValues) 
+            ? (() => {
+                try { return JSON.parse(String(config.attribute.allowedValues)) } catch { return [] }
+              })()
             : []
-          
-          const validOption = allowedValues.find((option: any) => 
-            option.shortForm === rawValue || option.fullForm === rawValue
-          )
-          
-          if (validOption) {
-            finalValue = validOption.shortForm
+
+          const validOption = allowedValues.find((option: unknown) => {
+            if (!option || typeof option !== 'object') return false
+            const opt = option as Record<string, unknown>
+            return String(opt.shortForm ?? '') === rawValue || String(opt.fullForm ?? '') === rawValue
+          })
+
+          if (validOption && typeof validOption === 'object') {
+            const opt = validOption as Record<string, unknown>
+            finalValue = String(opt.shortForm ?? '') || null
             confidence = 0.85 // High confidence for exact match
           } else {
             // Try fuzzy matching
             const fuzzyMatch = this.findFuzzyMatch(rawValue, allowedValues)
             if (fuzzyMatch) {
-              finalValue = fuzzyMatch.shortForm
+              finalValue = String(fuzzyMatch.shortForm ?? '') || null
               confidence = 0.6 // Lower confidence for fuzzy match
             }
           }
@@ -247,21 +280,23 @@ Analyze the image now:`
     }
   }
   
-  private static findFuzzyMatch(value: string, options: any[]): any | null {
+  private static findFuzzyMatch(value: string, options: Array<{ shortForm?: string; fullForm?: string }>): { shortForm: string; fullForm: string } | null {
     const normalizeString = (str: string) => 
       str.toLowerCase().replace(/[^a-z0-9]/g, '')
     
     const normalizedValue = normalizeString(value)
     
     for (const option of options) {
-      const normalizedShort = normalizeString(option.shortForm)
-      const normalizedFull = normalizeString(option.fullForm)
-      
+      const short = String(option.shortForm ?? '')
+      const full = String(option.fullForm ?? '')
+      const normalizedShort = normalizeString(short)
+      const normalizedFull = normalizeString(full)
+
       if (normalizedShort.includes(normalizedValue) || 
           normalizedValue.includes(normalizedShort) ||
           normalizedFull.includes(normalizedValue) || 
           normalizedValue.includes(normalizedFull)) {
-        return option
+        return { shortForm: short, fullForm: full }
       }
     }
     
@@ -270,9 +305,10 @@ Analyze the image now:`
   
   private static calculateOverallConfidence(results: AttributeExtractionResult[]): number {
     if (results.length === 0) return 0
-    
-    const totalConfidence = results.reduce((sum, result) => sum + result.confidence, 0)
-    return totalConfidence / results.length
+    const totalConfidence = results.reduce((sum, result) => sum + (typeof result.confidence === 'number' ? result.confidence : 0), 0)
+    // normalize to percentage 0-100 and round
+    const avg = results.length > 0 ? (totalConfidence / results.length) : 0
+    return Math.round(Math.max(0, Math.min(100, avg * 100)))
   }
   
   private static estimateTokensNeeded(imageSize: number, attributeCount: number): number {

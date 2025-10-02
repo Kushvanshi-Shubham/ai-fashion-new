@@ -1,4 +1,4 @@
-import { PrismaClient, AttributeType } from '@prisma/client'
+import { PrismaClient, AttributeType, Prisma } from '@prisma/client'
 import type { ImportResult, ImportError, AttributeDefinition } from '../../types/import-types'
 
 const prisma = new PrismaClient()
@@ -17,9 +17,9 @@ export class AttributeImporter {
       try {
         const attributeConfig = config as AttributeDefinition
         
-        // Handle allowedValues with proper typing
-        const allowedValuesData = attributeConfig.allowedValues 
-          ? attributeConfig.allowedValues 
+        // Handle allowedValues with proper typing — store as JSON string if present
+        const allowedValuesData: Prisma.JsonValue | null = attributeConfig.allowedValues && Array.isArray(attributeConfig.allowedValues)
+          ? (attributeConfig.allowedValues as unknown as Prisma.JsonValue)
           : null
         
         await prisma.masterAttribute.upsert({
@@ -27,16 +27,20 @@ export class AttributeImporter {
           update: {
             label: attributeConfig.label,
             description: attributeConfig.description || null,
-            // Use type assertion to bypass Prisma type checking
-            allowedValues: allowedValuesData as any,
+            // Store allowedValues as JSON string (or null)
+            // cast to any for import-time flexibility
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            allowedValues: allowedValuesData as unknown as any,
           },
           create: {
             key,
             label: attributeConfig.label,
             type: this.mapAttributeType(attributeConfig.type),
             description: attributeConfig.description || null,
-            // Use type assertion to bypass Prisma type checking
-            allowedValues: allowedValuesData as any,
+            // Store allowedValues as JSON string (or null)
+            // cast to any for import-time flexibility
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            allowedValues: allowedValuesData as unknown as any,
             aiExtractable: true,
             aiWeight: this.calculateAIWeight(key),
             aiPromptHint: `Extract ${attributeConfig.label.toLowerCase()} from fashion garment image`,

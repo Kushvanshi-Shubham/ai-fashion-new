@@ -37,12 +37,12 @@ export async function POST(request: NextRequest) {
           retryAfter: error.retryAfter,
           timestamp: new Date().toISOString()
         }, {
-          status: 429,
-          headers: {
-            'Retry-After': Math.ceil(error.retryAfter / 1000).toString(),
-            'X-RateLimit-Reset': new Date(Date.now() + error.retryAfter).toISOString()
-          }
+        status: 429,
+        headers: new Headers({
+          'Retry-After': Math.ceil(error.retryAfter / 1000).toString(),
+          'X-RateLimit-Reset': new Date(Date.now() + error.retryAfter).toISOString()
         })
+      })
       }
       throw error
     }
@@ -155,19 +155,22 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorCode = error instanceof Error ? (error.name === 'RateLimitExceededError' ? 'RATE_LIMIT_EXCEEDED' : 'EXTRACTION_ERROR') : 'UNKNOWN_ERROR'
     
+    const statusCode = errorCode === 'RATE_LIMIT_EXCEEDED' ? 429 : 500
+    const responseInit: ResponseInit = { status: statusCode }
+    if (error instanceof RateLimitExceededError) {
+      responseInit.headers = new Headers({
+        'Retry-After': Math.ceil(error.retryAfter / 1000).toString(),
+        'X-RateLimit-Reset': new Date(Date.now() + error.retryAfter).toISOString()
+      })
+    }
+
     return NextResponse.json({
       success: false,
       error: errorMessage,
       code: errorCode,
       requestId,
       timestamp: new Date().toISOString()
-    }, { 
-      status: errorCode === 'RATE_LIMIT_EXCEEDED' ? 429 : 500,
-      headers: error instanceof RateLimitExceededError ? {
-        'Retry-After': Math.ceil(error.retryAfter / 1000).toString(),
-        'X-RateLimit-Reset': new Date(Date.now() + error.retryAfter).toISOString()
-      } : undefined
-    })
+    }, responseInit)
   }
 }
 

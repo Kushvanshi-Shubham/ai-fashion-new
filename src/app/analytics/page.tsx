@@ -5,7 +5,7 @@ import { ArrowLeft, TrendingUp, Activity, Zap, DollarSign } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 export default function AnalyticsPage() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats } = useQuery({
     queryKey: ['analytics-stats'],
     queryFn: async () => {
       const response = await fetch('/api/analytics/stats')

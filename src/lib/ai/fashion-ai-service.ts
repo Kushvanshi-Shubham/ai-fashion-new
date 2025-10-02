@@ -1,8 +1,14 @@
 import OpenAI from "openai";
+import { CategoryFormData, AttributeField } from '@/types/fashion'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+type OpenAIResp = {
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+  choices?: Array<{ message?: { content?: string } }>
+}
 
 interface ExtractionResult {
   success: boolean;
@@ -24,7 +30,7 @@ export class FashionAIService {
   // ------------------ MAIN EXTRACTION ------------------
   static async extractAttributes(
     imageUrl: string,
-    categoryData: any
+    categoryData: CategoryFormData
   ): Promise<ExtractionResult> {
     const startTime = Date.now();
 
@@ -66,41 +72,46 @@ export class FashionAIService {
         temperature: 0.1,
       });
 
-      const processingTime = Date.now() - startTime;
-      const usage = response.usage!;
-      const cost = this.calculateCost(
-        usage.prompt_tokens,
-        usage.completion_tokens
-      );
+  const processingTime = Date.now() - startTime;
+  // Cast response to our minimal shape and guard usage tokens
+  const resp = response as unknown as OpenAIResp
+  const usage = resp.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  const promptTokens = typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : 0
+  const completionTokens = typeof usage.completion_tokens === 'number' ? usage.completion_tokens : 0
+  const totalTokens = typeof usage.total_tokens === 'number' ? usage.total_tokens : 0
+  const cost = this.calculateCost(promptTokens, completionTokens)
 
       console.log(`⚡ AI processing completed in ${processingTime}ms`);
       console.log(
-        `💰 Cost: $${cost.toFixed(4)} | Tokens: ${usage.total_tokens}`
+        `💰 Cost: $${cost.toFixed(4)} | Tokens: ${totalTokens}`
       );
 
-      // Parse and validate AI response
-      const aiResponse = response.choices[0].message.content!;
+      // Parse and validate AI response (guard shape)
+      const aiResponse = Array.isArray(resp.choices) ? resp.choices[0]?.message?.content : undefined
+      if (!aiResponse || typeof aiResponse !== 'string') {
+        throw new Error('No content in AI response')
+      }
       const parsedResult = await this.parseAndValidateResponse(
         aiResponse,
-        categoryData.fields
+        categoryData.fields as AttributeField[]
       );
 
       console.log(
         `✅ Extracted ${Object.keys(parsedResult.attributes).length} attributes`
       );
-      console.log(
-        `🎯 Overall confidence: ${(parsedResult.confidence * 100).toFixed(1)}%`
-      );
+      // Normalize confidence to percentage (0-100)
+      const confidencePercent = Math.round(Math.max(0, Math.min(100, (parsedResult.confidence ?? 0) * 100)))
+      console.log(`🎯 Overall confidence: ${confidencePercent}%`);
 
       return {
         success: true,
         attributes: parsedResult.attributes,
-        confidence: parsedResult.confidence,
-        processingTime,
+        confidence: confidencePercent,
+        processingTime: Math.max(0, Math.floor(processingTime)),
         tokenUsage: {
-          prompt: usage.prompt_tokens,
-          completion: usage.completion_tokens,
-          total: usage.total_tokens,
+          prompt: typeof promptTokens === 'number' ? Math.max(0, Math.floor(promptTokens)) : 0,
+          completion: typeof completionTokens === 'number' ? Math.max(0, Math.floor(completionTokens)) : 0,
+          total: typeof totalTokens === 'number' ? Math.max(0, Math.floor(totalTokens)) : 0,
         },
         cost,
         aiModel: "gpt-4-vision-preview",
@@ -114,7 +125,7 @@ export class FashionAIService {
         success: false,
         attributes: {},
         confidence: 0,
-        processingTime: Date.now() - startTime,
+        processingTime: Math.max(0, Math.floor(Date.now() - startTime)),
         tokenUsage: { prompt: 0, completion: 0, total: 0 },
         cost: 0,
         aiModel: "gpt-4-vision-preview",
@@ -124,18 +135,18 @@ export class FashionAIService {
   }
 
   // ------------------ PROMPT BUILDER ------------------
-  private static buildSmartPrompt(categoryData: any): string {
+  private static buildSmartPrompt(categoryData: CategoryFormData): string {
     const { categoryName, department, subDepartment, fields } = categoryData;
 
     const attributeInstructions = fields
-      .map((field: any) => {
+  .map((field: AttributeField) => {
         let instruction = `"${field.key}": {
   "label": "${field.label}",
   "type": "${field.type}"`;
 
-        if (field.options && field.options.length > 0) {
+          if (field.options && field.options.length > 0) {
           const optionsList = field.options
-            .map((opt: any) => `"${opt.shortForm}" (${opt.fullForm})`)
+            .map((opt: { shortForm: string; fullForm: string }) => `"${opt.shortForm}" (${opt.fullForm})`)
             .join(", ");
           instruction += `,
   "options": [${optionsList}],
@@ -179,7 +190,7 @@ Analyze the image now and respond with clean JSON:`;
   // ------------------ RESPONSE PARSER ------------------
   private static async parseAndValidateResponse(
     aiResponse: string,
-    fields: any[]
+    fields: AttributeField[]
   ): Promise<{
     attributes: Record<string, string | null>;
     confidence: number;
@@ -208,7 +219,7 @@ Analyze the image now and respond with clean JSON:`;
         if (aiValue && aiValue !== "null" && aiValue !== null) {
           if (field.options && field.options.length > 0) {
             const matchedOption = field.options.find(
-              (opt: any) =>
+              (opt: { shortForm: string; fullForm: string }) =>
                 opt.shortForm === aiValue ||
                 opt.fullForm === aiValue ||
                 opt.shortForm.toLowerCase() === String(aiValue).toLowerCase()
@@ -258,17 +269,17 @@ Analyze the image now and respond with clean JSON:`;
         confidence: Math.min(overallConfidence, 1.0),
         errors,
       };
-    } catch (parseError: any) {
+    } catch (parseError: unknown) {
       console.error("Failed to parse AI response:", parseError);
       console.log("Raw response:", aiResponse);
 
       const emptyAttrs: Record<string, string | null> = {};
-      fields.forEach((field: any) => (emptyAttrs[field.key] = null));
+      fields.forEach((field: AttributeField) => (emptyAttrs[field.key] = null));
 
       return {
         attributes: emptyAttrs,
         confidence: 0,
-        errors: [`Parse error: ${parseError.message}`],
+        errors: [`Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`],
       };
     }
   }
@@ -276,9 +287,9 @@ Analyze the image now and respond with clean JSON:`;
   // ------------------ FUZZY MATCH ------------------
   private static findClosestMatch(
     value: string,
-    options: any[]
-  ): { option: any; score: number } {
-    let bestMatch = { option: options[0], score: 0 };
+    options: { shortForm: string; fullForm: string }[]
+  ): { option: { shortForm: string; fullForm: string }; score: number } {
+    let bestMatch = { option: options[0] ?? { shortForm: '', fullForm: '' }, score: 0 };
     const normalizedValue = this.normalize(value);
 
     for (const option of options) {

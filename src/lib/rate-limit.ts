@@ -79,8 +79,8 @@ class RateLimiter {
     const responses = await multi.exec()
     if (!responses) throw new Error('Rate limit check failed')
 
-    const count = responses[2][1] as number
-    const ttl = responses[3][1] as number
+  const count = responses[2] ? (responses[2][1] as number) : 0
+  const ttl = responses[3] ? (responses[3][1] as number) : 0
 
     // Set or refresh expiration
     const expiry = ttl < 0 ? this.config.interval / 1000 : ttl
@@ -109,7 +109,7 @@ class RateLimiter {
     
     if (timestamps.length >= this.config.maxRequests) {
       const oldestValidTimestamp = timestamps[0]
-      const resetTime = oldestValidTimestamp + this.config.interval
+    const resetTime = (oldestValidTimestamp ?? 0) + this.config.interval
       throw new RateLimitExceededError(resetTime - now)
     }
 

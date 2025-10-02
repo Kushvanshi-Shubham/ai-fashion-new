@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { aiService } from '../ai-services'
-import { ExtractionResult } from '@/types/fashion'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
-export async function POST(this: any, request: NextRequest) {
+export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID()
   const startTime = Date.now()
 
@@ -139,10 +138,16 @@ export async function POST(this: any, request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Calculate success metrics
-    const totalAttributes = Object.keys(extractionResult.attributes).length
-    const extractedAttributes = Object.values(extractionResult.attributes)
-      .filter(attr => attr.value !== null).length
+    // Ensure we only access completed-only fields after narrowing
+    // Narrow completed extraction before accessing completed-only fields
+    const attrs: Record<string, import('@/types/fashion').AttributeDetail> = extractionResult.status === 'completed' ? extractionResult.attributes : {}
+    const totalAttributes = Object.keys(attrs).length
+    const extractedAttributes = Object.values(attrs)
+      .filter((attr) => {
+        if (!attr || typeof attr !== 'object') return false
+        const maybe = attr as import('@/types/fashion').AttributeDetail
+        return maybe.value !== null
+      }).length
     const successRate = totalAttributes > 0 ? extractedAttributes / totalAttributes : 0
 
     // Comprehensive response
@@ -174,17 +179,17 @@ export async function POST(this: any, request: NextRequest) {
         extraction: {
           id: extractionResult.id,
           status: extractionResult.status,
-          attributes: extractionResult.attributes,
-          confidence: extractionResult.confidence,
-          fromCache: extractionResult.fromCache || false
+          attributes: attrs,
+          confidence: extractionResult.status === 'completed' ? extractionResult.confidence : undefined,
+          fromCache: extractionResult.status === 'completed' ? !!extractionResult.fromCache : false
         },
 
         // Performance metrics
         performance: {
           processingTime: Date.now() - startTime,
-          aiProcessingTime: extractionResult.processingTime,
-          tokensUsed: extractionResult.tokensUsed,
-          cost: this.calculateCost(extractionResult.tokensUsed)
+          aiProcessingTime: extractionResult.status === 'completed' ? extractionResult.processingTime : undefined,
+          tokensUsed: extractionResult.status === 'completed' ? extractionResult.tokensUsed : undefined,
+          cost: extractionResult.status === 'completed' ? calculateCost(extractionResult.tokensUsed) : undefined
         },
 
         // Quality metrics
@@ -192,7 +197,7 @@ export async function POST(this: any, request: NextRequest) {
           totalAttributes,
           extractedAttributes,
           successRate: Math.round(successRate * 100),
-          confidenceDistribution: this.calculateConfidenceDistribution(extractionResult.attributes)
+          confidenceDistribution: calculateConfidenceDistribution(attrs)
         }
       }
     }
@@ -242,63 +247,23 @@ export async function GET() {
 }
 
 // Helper function to calculate API cost
-interface BatchExtractionResult {
-  id: string
-  success: boolean
-  result?: ExtractionResult
-  error?: string
-}
-
-// Batch size for concurrent processing
-const BATCH_SIZE = 3
-
-async function processBatch(images: File[], categoryId: string): Promise<BatchExtractionResult[]> {
-  const results: BatchExtractionResult[] = []
-  
-  // Process images in parallel within batch size limit
-  for (let i = 0; i < images.length; i += BATCH_SIZE) {
-    const batch = images.slice(i, i + BATCH_SIZE)
-    const batchPromises = batch.map(async (image) => {
-      try {
-        const result = await aiService.extractAttributes(image, categoryId)
-        return {
-          id: crypto.randomUUID(),
-          success: true,
-          result
-        }
-      } catch (error) {
-        return {
-          id: crypto.randomUUID(),
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      }
-    })
-    
-    const batchResults = await Promise.all(batchPromises)
-    results.push(...batchResults)
-  }
-  
-  return results
-}
-
 function calculateCost(tokens: number): number {
   // GPT-4 Vision optimized pricing
   const inputRate = 0.01  // $0.01 per 1K input tokens
   const outputRate = 0.03 // $0.03 per 1K output tokens
-  
+
   // Dynamic token split based on response size
   const inputTokens = Math.round(tokens * 0.7)
   const outputTokens = Math.round(tokens * 0.3)
-  
+
   return (inputTokens * inputRate + outputTokens * outputRate) / 1000
 }
 
 // Helper function to calculate confidence distribution
-function calculateConfidenceDistribution(attributes: Record<string, any>) {
+function calculateConfidenceDistribution(attributes: Record<string, unknown>) {
   const confidences = Object.values(attributes)
-    .map((attr: any) => attr.confidence)
-    .filter(conf => conf > 0)
+    .map((attr: unknown) => typeof attr === 'object' && attr !== null ? (attr as { confidence?: number }).confidence : undefined)
+    .filter((conf): conf is number => typeof conf === 'number' && conf > 0)
 
   if (confidences.length === 0) {
     return { high: 0, medium: 0, low: 0 }
