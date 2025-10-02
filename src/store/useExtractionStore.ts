@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
-import { ExtractionResult, CategoryFormData } from '@/types/fashion'
+import { ExtractionResult, CategoryFormData, CompletedExtractionResult, FailedExtractionResult } from '@/types/fashion'
+import { useMemo } from 'react'
 
 interface UploadedImage {
   id: string

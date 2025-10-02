@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CategoryFormData } from '@/types/fashion'
-
-
-import { Category } from '@/types'
 import { rateLimit } from '@/lib/rate-limit'
+import { CategoryConfig } from '@/types/import-types'
 
 interface CacheEntry {
-  data: Category
+  data: CategoryFormData
   expiry: number
 }
 
@@ -17,7 +15,8 @@ const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 // Rate limiting configuration
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 500
+  maxRequests: 60,
+  blockDuration: 120 * 1000 // 2 minutes
 })
 
 export async function GET(this: any, 
@@ -26,7 +25,7 @@ export async function GET(this: any,
 ) {
   try {
     // Apply rate limiting
-    await limiter.check(request, 60, 'CATEGORY_API') // 60 requests per minute
+    await limiter.check(request, 'CATEGORY_API') // 60 requests per minute
   } catch {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
@@ -34,10 +33,13 @@ export async function GET(this: any,
   // Validate category ID
   const categoryId = params.id
   if (!categoryId.match(/^[a-zA-Z0-9_-]+$/)) {
-    return NextResponse.json({ error: 'Invalid category ID format' }, { status: 400 })
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid category ID format',
+      code: 'INVALID_CATEGORY_ID'
+    }, { status: 400 })
   }
   const startTime = Date.now()
-  const categoryId = params.id
 
   try {
     console.log(`📋 Loading category: ${categoryId}`)
@@ -59,12 +61,12 @@ export async function GET(this: any,
     const { MASTER_ATTRIBUTES } = await import('../../../../../data/masterAttributes')
 
     // Find category
-    const category = CATEGORY_DEFINITIONS.find((cat: any) => cat.id === categoryId)
+    const category = CATEGORY_DEFINITIONS.find((cat: CategoryConfig) => cat.id === categoryId)
     if (!category) {
       return NextResponse.json({
         success: false,
         error: `Category '${categoryId}' not found`,
-        availableCategories: CATEGORY_DEFINITIONS.slice(0, 10).map((c: any) => c.id),
+        availableCategories: CATEGORY_DEFINITIONS.slice(0, 10).map((c: CategoryConfig) => c.id),
         code: 'CATEGORY_NOT_FOUND'
       }, { status: 404 })
     }
@@ -135,7 +137,13 @@ export async function GET(this: any,
 
     // Cleanup cache periodically
     if (categoryCache.size > 100) {
-      this.cleanupCache()
+      const now = Date.now()
+      for (const [key, entry] of categoryCache.entries()) {
+        if (entry.expiry <= now) {
+          categoryCache.delete(key)
+        }
+      }
+      console.log(`🧹 Category cache cleaned, size: ${categoryCache.size}`)
     }
 
     console.log(`📋 Category loaded: ${formData.categoryName} (${enabledCount}/${Object.keys(category.attributes).length} attributes)`)
@@ -168,15 +176,6 @@ export async function GET(this: any,
 }
 
 // Cleanup expired cache entries
-function cleanupCache() {
-  const now = Date.now()
-  for (const [key, cached] of categoryCache.entries()) {
-    if (cached.expiry <= now) {
-      categoryCache.delete(key)
-    }
-  }
-  console.log(`🧹 Category cache cleaned, size: ${categoryCache.size}`)
-}
 
 // Health check endpoint
 export async function HEAD(
@@ -187,7 +186,7 @@ export async function HEAD(
   
   try {
     const { CATEGORY_DEFINITIONS } = await import('../../../../../data/categoryDefinitions')
-    const exists = CATEGORY_DEFINITIONS.some((cat: any) => cat.id === categoryId)
+    const exists = CATEGORY_DEFINITIONS.some((cat: CategoryConfig) => cat.id === categoryId)
     
     return new NextResponse(null, { 
       status: exists ? 200 : 404,
@@ -197,6 +196,7 @@ export async function HEAD(
       }
     })
   } catch (error) {
+    console.error('Health check failed:', error instanceof Error ? error.message : 'Unknown error')
     return new NextResponse(null, { status: 500 })
   }
 }
