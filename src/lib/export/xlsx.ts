@@ -1,7 +1,7 @@
 
-// Lightweight dynamic import of sheetjs to avoid unnecessary bundle size when unused
-async function loadXLSX() {
-  const mod = await import('xlsx')
+// Lightweight dynamic import of exceljs (secure xlsx alternative)
+async function loadExcelJS() {
+  const mod = await import('exceljs')
   return mod
 }
 
@@ -44,14 +44,26 @@ export async function exportExtractionsToXlsx(results: GenericExtraction[], opts
     return base
   })
 
-  const XLSX = await loadXLSX()
-  const worksheet = XLSX.utils.json_to_sheet(rows)
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Extractions')
-  const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+  const ExcelJS = await loadExcelJS()
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Extractions')
 
-  // Trigger download
-  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  // Add headers
+  const headers = ['id', 'file', 'status', 'tokensUsed', 'processingMs', ...sortedAttr]
+  worksheet.columns = headers.map(header => ({ header, key: header, width: 20 }))
+
+  // Add data rows
+  rows.forEach(row => worksheet.addRow(row))
+
+  // Style the header row
+  worksheet.getRow(1).eachCell(cell => {
+    cell.font = { bold: true }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } }
+  })
+
+  // Generate buffer and download
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

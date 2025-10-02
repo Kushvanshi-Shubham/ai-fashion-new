@@ -3,8 +3,7 @@ import {
   completeJob,
   failJob,
 } from './job-manager';
-import { aiService } from '../ai/ai-services';
-import { estimateCost } from '../ai/model-pricing';
+import { FashionAIService } from '../ai/fashion-ai-service';
 import { prisma } from '../database';
 import { ExtractionJob } from '@/types/job';
 
@@ -13,47 +12,56 @@ let isProcessing = false;
 async function processJob(job: ExtractionJob) {
   console.log(`[Worker] Processing job: ${job.id}`);
   try {
-    const extractionResult = await aiService.extractAttributes(
-      job.data.imageBuffer,
+    // Convert buffer to base64 URL for the AI service
+    const base64Image = `data:${job.data.imageType};base64,${job.data.imageBuffer.toString('base64')}`;
+    
+    // Use discovery mode for enhanced extraction
+    const extractionResult = await FashionAIService.extractWithDiscovery(
+      base64Image,
       job.data.category,
-      {
-        model: job.data.model,
-        maxTokens: 1500,
-        temperature: 0.1,
-        cacheEnabled: true,
-        cacheTTL: 3600 * 24,
-      }
+      true // Enable discovery mode
     );
 
-    const tokensUsed = extractionResult.status === 'completed' ? extractionResult.tokensUsed ?? 0 : 0;
-    const costUsd = estimateCost({
-      model: job.data.model,
-      totalTokens: tokensUsed,
-      hasVision: true,
-    });
+    if (extractionResult.success) {
+      const tokensUsed = extractionResult.tokenUsage.total;
+      const costUsd = extractionResult.cost;
 
-    if (extractionResult.status === 'completed') {
-      const result = {
-        status: extractionResult.status,
-        extraction: {
-          attributes: extractionResult.attributes,
+      // Convert attributes to the expected format
+      const formattedAttributes: Record<string, import('@/types/fashion').AttributeDetail> = {}
+      for (const [key, value] of Object.entries(extractionResult.attributes)) {
+        formattedAttributes[key] = {
+          value: value,
           confidence: extractionResult.confidence,
-          tokensUsed: extractionResult.tokensUsed,
-          model: 'gpt-4o',
+          reasoning: `AI extracted with ${extractionResult.confidence}% confidence`,
+          fieldLabel: key,
+          isValid: value !== null
+        }
+      }
+
+      const result = {
+        status: 'completed' as const,
+        extraction: {
+          attributes: formattedAttributes,
+          confidence: extractionResult.confidence,
+          tokensUsed: tokensUsed,
+          model: extractionResult.aiModel,
           cost: costUsd,
-          fromCache: extractionResult.fromCache || false,
+          fromCache: false,
         },
+        discoveries: extractionResult.discoveries,
         costUsd,
         tokensUsed,
       };
+      
       completeJob(job.id, result);
-      console.log(`[Worker] Completed job: ${job.id}`);
+      console.log(`[Worker] Completed job: ${job.id} with ${extractionResult.discoveries?.length || 0} discoveries`);
       
       // Persist analytics
       persistAnalytics(job, result, 'COMPLETED');
     } else {
-      failJob(job.id, 'Extraction failed with status: ' + extractionResult.status);
-      console.log(`[Worker] Failed job: ${job.id} - ${extractionResult.status}`);
+      const errorMsg = extractionResult.errors?.join(', ') || 'Unknown extraction error';
+      failJob(job.id, errorMsg);
+      console.log(`[Worker] Failed job: ${job.id} - ${errorMsg}`);
     }
 
   } catch (error) {

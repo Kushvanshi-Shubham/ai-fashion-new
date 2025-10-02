@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { CategoryFormData, AttributeField } from '@/types/fashion'
+import { DiscoveredAttribute } from '@/types/discovery'
+import { discoveryManager } from '@/lib/services/discoveryManager'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,6 +26,7 @@ interface ExtractionResult {
   aiModel: string;
   rawResponse?: string;
   errors?: string[];
+  discoveries?: DiscoveredAttribute[] | undefined;
 }
 
 export class FashionAIService {
@@ -32,6 +35,15 @@ export class FashionAIService {
     imageUrl: string,
     categoryData: CategoryFormData
   ): Promise<ExtractionResult> {
+    return this.extractWithDiscovery(imageUrl, categoryData, false)
+  }
+
+  // ------------------ DISCOVERY EXTRACTION ------------------
+  static async extractWithDiscovery(
+    imageUrl: string,
+    categoryData: CategoryFormData,
+    discoveryEnabled = true
+  ): Promise<ExtractionResult> {
     const startTime = Date.now();
 
     try {
@@ -39,10 +51,12 @@ export class FashionAIService {
         `🧠 Starting AI extraction for category: ${categoryData.categoryName}`
       );
 
-      // Build smart prompt
-      const prompt = this.buildSmartPrompt(categoryData);
+      // Build smart prompt with discovery mode
+      const prompt = discoveryEnabled 
+        ? this.buildDiscoveryPrompt(categoryData)
+        : this.buildSmartPrompt(categoryData);
       console.log(
-        `📝 Generated prompt for ${categoryData.enabledAttributes} attributes`
+        `📝 Generated ${discoveryEnabled ? 'discovery' : 'standard'} prompt for ${categoryData.enabledAttributes} attributes`
       );
 
       // Call OpenAI GPT-4 Vision
@@ -91,10 +105,23 @@ export class FashionAIService {
       if (!aiResponse || typeof aiResponse !== 'string') {
         throw new Error('No content in AI response')
       }
-      const parsedResult = await this.parseAndValidateResponse(
-        aiResponse,
-        categoryData.fields as AttributeField[]
-      );
+      
+      let parsedResult
+      let discoveries: DiscoveredAttribute[] = []
+      
+      if (discoveryEnabled) {
+        const enhancedResult = await this.parseDiscoveryResponse(aiResponse, categoryData.fields as AttributeField[])
+        parsedResult = enhancedResult
+        discoveries = enhancedResult.discoveries || []
+        
+        // Add discoveries to global manager
+        if (discoveries.length > 0) {
+          discoveryManager.addDiscoveries(discoveries, categoryData.categoryId)
+          console.log(`🔍 Found ${discoveries.length} discoveries`)
+        }
+      } else {
+        parsedResult = await this.parseAndValidateResponse(aiResponse, categoryData.fields as AttributeField[])
+      }
 
       console.log(
         `✅ Extracted ${Object.keys(parsedResult.attributes).length} attributes`
@@ -117,6 +144,7 @@ export class FashionAIService {
         aiModel: "gpt-4-vision-preview",
         rawResponse: aiResponse,
         errors: parsedResult.errors,
+        discoveries: discoveries.length > 0 ? discoveries : undefined,
       };
     } catch (error) {
       console.error("❌ AI extraction failed:", error);
@@ -334,5 +362,128 @@ Analyze the image now and respond with clean JSON:`;
     const promptRate = 0.01 / 1000;
     const completionRate = 0.03 / 1000;
     return promptTokens * promptRate + completionTokens * completionRate;
+  }
+
+  // ------------------ DISCOVERY PROMPT BUILDER ------------------
+  private static buildDiscoveryPrompt(categoryData: CategoryFormData): string {
+    const { categoryName, department, subDepartment, fields } = categoryData;
+
+    const attributeInstructions = fields
+      .map((field: AttributeField) => {
+        let instruction = `"${field.key}": "${field.label}"`;
+        if (field.options && field.options.length > 0) {
+          const optionsList = field.options
+            .map((opt: { shortForm: string; fullForm: string }) => `"${opt.shortForm}"`)
+            .join(", ");
+          instruction += ` (options: ${optionsList})`;
+        }
+        return instruction;
+      })
+      .join(",\n  ");
+
+    return `You are analyzing a ${department} ${subDepartment} garment: "${categoryName}".
+
+DUAL TASK:
+1. EXTRACT standard attributes (return exact shortForm values from options, or descriptive text)
+2. DISCOVER new attributes (identify additional characteristics not in the standard list)
+
+STANDARD ATTRIBUTES:
+{
+  ${attributeInstructions}
+}
+
+DISCOVERY INSTRUCTIONS:
+- Look for additional visible characteristics not covered by standard attributes
+- Focus on: materials, patterns, decorative elements, construction details, style features
+- For each discovery, provide: key, label, value, confidence (0-100), reasoning
+
+RESPONSE FORMAT (JSON only, no markdown):
+{
+  "standardAttributes": {
+    "color_main": "value_or_null",
+    "neck": "value_or_null"
+    // ... etc for all standard attributes
+  },
+  "discoveries": [
+    {
+      "key": "unique_snake_key",
+      "label": "Human Readable Label", 
+      "rawValue": "what_you_see",
+      "normalizedValue": "clean_value",
+      "confidence": 85,
+      "reasoning": "why you identified this",
+      "suggestedType": "text|select|number"
+    }
+  ]
+}
+
+Analyze the image now:`;
+  }
+
+  // ------------------ DISCOVERY RESPONSE PARSER ------------------
+  private static async parseDiscoveryResponse(
+    aiResponse: string,
+    fields: AttributeField[]
+  ): Promise<{
+    attributes: Record<string, string | null>;
+    confidence: number;
+    errors: string[];
+    discoveries?: DiscoveredAttribute[] | undefined;
+  }> {
+    const errors: string[] = [];
+    let discoveries: DiscoveredAttribute[] = [];
+
+    try {
+      // Clean the AI response
+      let cleanJson = aiResponse.trim();
+      if (cleanJson.includes("```")) {
+        cleanJson = cleanJson.replace(/```json\s*|\s*```/g, "");
+      }
+
+      const parsed = JSON.parse(cleanJson);
+      
+      // Parse standard attributes
+      const standardResult = await this.parseAndValidateResponse(
+        JSON.stringify(parsed.standardAttributes || parsed),
+        fields
+      );
+
+      // Parse discoveries
+      if (parsed.discoveries && Array.isArray(parsed.discoveries)) {
+        discoveries = parsed.discoveries
+          .filter((d: unknown) => d && typeof d === 'object')
+          .map((d: Record<string, unknown>) => ({
+            key: String(d.key || '').toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+            label: String(d.label || d.key || ''),
+            rawValue: String(d.rawValue || d.value || ''),
+            normalizedValue: String(d.normalizedValue || d.rawValue || d.value || ''),
+            confidence: Math.min(100, Math.max(0, Number(d.confidence) || 0)),
+            reasoning: String(d.reasoning || ''),
+            frequency: 1,
+            suggestedType: (['text', 'select', 'number'].includes(String(d.suggestedType)) 
+              ? String(d.suggestedType) 
+              : 'text') as 'text' | 'select' | 'number'
+          }))
+          .filter((d: DiscoveredAttribute) => d.key && d.label && d.normalizedValue);
+
+        console.log(`🔍 Parsed ${discoveries.length} discoveries from AI response`);
+      }
+
+      return {
+        ...standardResult,
+        discoveries: discoveries.length > 0 ? discoveries : undefined
+      };
+
+    } catch (parseError: unknown) {
+      console.error("Failed to parse discovery response:", parseError);
+      
+      // Fallback to standard parsing
+      const fallbackResult = await this.parseAndValidateResponse(aiResponse, fields);
+      return {
+        ...fallbackResult,
+        discoveries: undefined,
+        errors: [...fallbackResult.errors, `Discovery parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`]
+      };
+    }
   }
 }

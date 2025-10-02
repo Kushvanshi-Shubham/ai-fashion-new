@@ -1,29 +1,117 @@
 import { CategoryFormData, ExtractionResult, ExtractionResponse } from '@/types/fashion'
 import { normalizeExtraction } from '@/lib/extraction/transform'
 
+export interface ExtractionJobResponse {
+  success: boolean
+  data?: {
+    jobId: string
+    status: string
+    message: string
+    timestamp: string
+  }
+  error?: string
+  code?: string
+  retryAfter?: number
+}
+
 export class ExtractionService {
-  static async extract(file: File, categoryId: string): Promise<ExtractionResult> {
+  /**
+   * Extract attributes from image using category-specific configuration
+   * Returns a job ID for async processing
+   */
+  static async extract(file: File, category: CategoryFormData): Promise<{ jobId: string }> {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('categoryId', categoryId)
+      formData.append('categoryId', category.categoryId)
 
       const response = await fetch('/api/extract', {
         method: 'POST',
         body: formData,
       })
 
-      const result = await response.json()
+      const result: ExtractionJobResponse = await response.json()
       if (!response.ok || !result?.success) {
         // Attach guidance for common server failure scenarios
         const code = result?.code || (response.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'EXTRACTION_FAILED')
         const guidance = this.failureGuidance(code, result?.error)
         throw new Error(guidance)
       }
-  return this.mapExtractionResponse(result)
+
+      if (!result.data?.jobId) {
+        throw new Error('Invalid response: missing job ID')
+      }
+
+      return { jobId: result.data.jobId }
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Unknown error')
     }
+  }
+
+  /**
+   * Check the status of an extraction job
+   */
+  static async getJobStatus(jobId: string): Promise<{
+    status: string
+    result?: ExtractionResult
+    error?: string
+  }> {
+    try {
+      const response = await fetch(`/api/extract/status/${jobId}`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get job status')
+      }
+
+      return data
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to check job status')
+    }
+  }
+
+  /**
+   * Poll job status until completion
+   */
+  static async pollJobStatus(
+    jobId: string, 
+    onProgress?: (status: string) => void,
+    maxAttempts = 30,
+    interval = 2000
+  ): Promise<ExtractionResult> {
+    let attempts = 0
+    
+    while (attempts < maxAttempts) {
+      try {
+        const status = await this.getJobStatus(jobId)
+        
+        onProgress?.(status.status)
+        
+        if (status.status === 'completed' && status.result) {
+          return status.result
+        }
+        
+        if (status.status === 'failed') {
+          throw new Error(status.error || 'Job failed')
+        }
+        
+        if (status.status === 'processing' || status.status === 'pending') {
+          await new Promise(resolve => setTimeout(resolve, interval))
+          attempts++
+          continue
+        }
+        
+        throw new Error(`Unknown job status: ${status.status}`)
+      } catch (error) {
+        if (attempts === maxAttempts - 1) {
+          throw error
+        }
+        await new Promise(resolve => setTimeout(resolve, interval))
+        attempts++
+      }
+    }
+    
+    throw new Error('Job polling timed out')
   }
 
   static async getCategory(categoryId: string): Promise<CategoryFormData> {
