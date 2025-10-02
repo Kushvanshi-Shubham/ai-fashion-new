@@ -1,139 +1,175 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server'
+import { CategoryFormData } from '@/types/fashion'
 
-// Define category type
-interface Category {
-  id: string;
-  displayName: string;
-  category: string;
-  department: string;
-  subDepartment: string;
-  description?: string;
-  isActive: boolean;
-  attributes: Record<string, boolean>;
-}
+// Cache for category data
+const categoryCache = new Map<string, { data: any, expiry: number }>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-interface AttributeConfig {
-  label: string;
-  type: string;
-  allowedValues?: string[];
-  description?: string;
-}
-
-export async function GET(
+export async function GET(this: any, 
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const startTime = Date.now()
+  const categoryId = params.id
+
   try {
-    const categoryId = params.id;
-    console.log(`🔍 Looking for category: ${categoryId}`);
+    console.log(`📋 Loading category: ${categoryId}`)
 
-    // Import your data files directly
-    const { CATEGORY_DEFINITIONS } = await import(
-      "../../../../../data/categoryDefinitions"
-    );
-    const { MASTER_ATTRIBUTES } = await import(
-      "../../../../../data/masterAttributes"
-    );
+    // Check cache first
+    const cached = categoryCache.get(categoryId)
+    if (cached && cached.expiry > Date.now()) {
+      console.log(`✅ Cache hit for category: ${categoryId}`)
+      return NextResponse.json({
+        success: true,
+        data: cached.data,
+        fromCache: true,
+        processingTime: Date.now() - startTime
+      })
+    }
 
-    // Ensure CATEGORY_DEFINITIONS has proper typing
-    const category = (CATEGORY_DEFINITIONS as Category[]).find(
-      (cat) => cat.id === categoryId
-    );
+    // Import data dynamically to avoid loading all at startup
+    const { CATEGORY_DEFINITIONS } = await import('../../../../../data/categoryDefinitions')
+    const { MASTER_ATTRIBUTES } = await import('../../../../../data/masterAttributes')
 
+    // Find category
+    const category = CATEGORY_DEFINITIONS.find((cat: any) => cat.id === categoryId)
     if (!category) {
-      console.log(`❌ Category not found: ${categoryId}`);
-      return NextResponse.json(
-        { error: `Category '${categoryId}' not found` },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        success: false,
+        error: `Category '${categoryId}' not found`,
+        availableCategories: CATEGORY_DEFINITIONS.slice(0, 10).map((c: any) => c.id),
+        code: 'CATEGORY_NOT_FOUND'
+      }, { status: 404 })
     }
 
-    console.log(`✅ Found category: ${category.displayName}`);
+    // Generate form fields efficiently
+    const fields = []
+    let enabledCount = 0
+    let aiExtractableCount = 0
 
-    // Generate form fields
-    const fields: Array<{
-      key: string;
-      label: string;
-      type: string;
-      required: boolean;
-      options: string[] | null;
-      description: string;
-      aiExtractable: boolean;
-      aiWeight: number;
-    }> = [];
+    for (const [attributeKey, isEnabled] of Object.entries(category.attributes)) {
+      if (!isEnabled) continue
 
-    let enabledCount = 0;
-
-    for (const [attributeKey, isEnabled] of Object.entries(
-      category.attributes
-    )) {
-      if (isEnabled) {
-        const attributeConfig = (MASTER_ATTRIBUTES as Record<
-          string,
-          AttributeConfig
-        >)[attributeKey];
-
-        if (attributeConfig) {
-          fields.push({
-            key: attributeKey,
-            label: attributeConfig.label,
-            type: attributeConfig.type.toLowerCase(),
-            required: false,
-            options: attributeConfig.allowedValues || null,
-            description:
-              attributeConfig.description ||
-              `${attributeConfig.label} attribute`,
-            aiExtractable: true,
-            aiWeight: 1.0,
-          });
-          enabledCount++;
-        } else {
-          console.warn(`⚠️ Attribute definition not found: ${attributeKey}`);
-        }
+      const attributeConfig = MASTER_ATTRIBUTES[attributeKey]
+      if (!attributeConfig) {
+        console.warn(`⚠️  Attribute definition missing: ${attributeKey}`)
+        continue
       }
+
+      // Parse options if they exist
+      let options = null
+      if (attributeConfig.allowedValues && Array.isArray(attributeConfig.allowedValues)) {
+        // Limit options to prevent large payloads
+        options = attributeConfig.allowedValues.slice(0, 20)
+      }
+
+      const field = {
+        key: attributeKey,
+        label: attributeConfig.label,
+        type: attributeConfig.type?.toLowerCase() || 'text',
+        required: false, // Could be enhanced based on category rules
+        options,
+        description: attributeConfig.description,
+        aiExtractable: true,
+        aiWeight: 1.0
+      }
+
+      fields.push(field)
+      enabledCount++
+      if (field.aiExtractable) aiExtractableCount++
     }
 
-    // Sort fields by importance
+    // Sort fields by importance (those with options first, then by label)
     fields.sort((a, b) => {
-      if (a.options && !b.options) return -1;
-      if (!a.options && b.options) return 1;
-      return a.label.localeCompare(b.label);
-    });
+      if (a.options && !b.options) return -1
+      if (!a.options && b.options) return 1
+      return a.label.localeCompare(b.label)
+    })
 
-    const formSchema = {
+    const formData: CategoryFormData = {
       categoryId: category.id,
-      categoryCode: category.category,
+      categoryCode: category.category || category.id,
       categoryName: category.displayName,
       department: category.department,
       subDepartment: category.subDepartment,
-      description: category.description,
-      isActive: category.isActive,
-
-      // Attribute statistics
+      description: category.description || `${category.department} ${category.subDepartment} category`,
       totalAttributes: Object.keys(category.attributes).length,
       enabledAttributes: enabledCount,
-      extractableAttributes: fields.filter((f) => f.aiExtractable).length,
+      isActive: false,
+      extractableAttributes: 0,
+      fields: []
+    }
 
-      // Form fields
-      fields,
-    };
+    // Cache the result
+    categoryCache.set(categoryId, {
+      data: formData,
+      expiry: Date.now() + CACHE_TTL
+    })
 
-    console.log(
-      `📋 Generated form with ${fields.length} fields for ${category.displayName}`
-    );
+    // Cleanup cache periodically
+    if (categoryCache.size > 100) {
+      this.cleanupCache()
+    }
+
+    console.log(`📋 Category loaded: ${formData.categoryName} (${enabledCount}/${Object.keys(category.attributes).length} attributes)`)
 
     return NextResponse.json({
       success: true,
-      data: formSchema,
-    });
+      data: formData,
+      fromCache: false,
+      processingTime: Date.now() - startTime,
+      metadata: {
+        totalAttributesInCategory: Object.keys(category.attributes).length,
+        enabledAttributes: enabledCount,
+        aiExtractableAttributes: aiExtractableCount,
+        attributesWithOptions: fields.filter(f => f.options).length
+      }
+    })
+
   } catch (error) {
-    console.error("Form generation error:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to generate form",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    console.error(`❌ Category loading failed for ${categoryId}:`, error)
+
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to load category configuration',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      categoryId,
+      processingTime: Date.now() - startTime,
+      code: 'CATEGORY_LOAD_ERROR'
+    }, { status: 500 })
+  }
+}
+
+// Cleanup expired cache entries
+function cleanupCache() {
+  const now = Date.now()
+  for (const [key, cached] of categoryCache.entries()) {
+    if (cached.expiry <= now) {
+      categoryCache.delete(key)
+    }
+  }
+  console.log(`🧹 Category cache cleaned, size: ${categoryCache.size}`)
+}
+
+// Health check endpoint
+export async function HEAD(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const categoryId = params.id
+  
+  try {
+    const { CATEGORY_DEFINITIONS } = await import('../../../../../data/categoryDefinitions')
+    const exists = CATEGORY_DEFINITIONS.some((cat: any) => cat.id === categoryId)
+    
+    return new NextResponse(null, { 
+      status: exists ? 200 : 404,
+      headers: {
+        'Cache-Control': 'public, max-age=300', // 5 minutes
+        'X-Category-Exists': exists.toString()
+      }
+    })
+  } catch (error) {
+    return new NextResponse(null, { status: 500 })
   }
 }

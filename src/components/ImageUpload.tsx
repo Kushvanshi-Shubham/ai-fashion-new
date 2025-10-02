@@ -1,242 +1,370 @@
 'use client'
+import React, { useCallback, useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Upload, X, Image as ImageIcon, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 
-import { useState, useRef, useCallback } from 'react'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
-import { cn, formatBytes } from '@/lib/utils'
-import { UploadedImage } from '@/types'
+interface ImageFile extends File {
+  id: string
+  preview: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  progress: number
+  error?: string
+}
 
 interface ImageUploadProps {
-  onUpload: (files: File[]) => void
+  onFilesSelected: (files: File[]) => void
+  disabled?: boolean
   maxFiles?: number
   maxSize?: number // in bytes
-  accept?: string
-  disabled?: boolean
+  acceptedTypes?: string[]
+  existingFiles?: ImageFile[]
+  onRemoveFile?: (id: string) => void
   className?: string
 }
 
+const DEFAULT_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const DEFAULT_MAX_SIZE = 10 * 1024 * 1024 // 10MB
+const DEFAULT_MAX_FILES = 10
+
 export default function ImageUpload({
-  onUpload,
-  maxFiles = 10,
-  maxSize = 10 * 1024 * 1024, // 10MB
-  accept = 'image/*',
+  onFilesSelected,
   disabled = false,
-  className
+  maxFiles = DEFAULT_MAX_FILES,
+  maxSize = DEFAULT_MAX_SIZE,
+  acceptedTypes = DEFAULT_ACCEPTED_TYPES,
+  existingFiles = [],
+  onRemoveFile,
+  className = ''
 }: ImageUploadProps) {
-  const [isDragActive, setIsDragActive] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedImage[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dragActive, setDragActive] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
+  const inputRef = useRef<HTMLInputElement>(null)
+  const uploadRef = useRef<HTMLDivElement>(null)
 
-  const validateFile = useCallback((file: File): string | null => {
-    if (!file.type.startsWith('image/')) {
-      return 'Please upload only image files'
-    }
-    if (file.size > maxSize) {
-      return `File size must be less than ${formatBytes(maxSize)}`
-    }
-    return null
-  }, [maxSize])
-
-  const handleFiles = useCallback((files: FileList | File[]) => {
-    const fileArray = Array.from(files)
-    
-    if (fileArray.length + uploadedFiles.length > maxFiles) {
-      alert(`You can only upload up to ${maxFiles} files`)
-      return
-    }
-
-    const validFiles: File[] = []
-    const errors: string[] = []
-
-    fileArray.forEach(file => {
-      const error = validateFile(file)
-      if (error) {
-        errors.push(`${file.name}: ${error}`)
-      } else {
-        validFiles.push(file)
-      }
-    })
-
-    if (errors.length > 0) {
-      alert('Upload errors:\n' + errors.join('\n'))
-    }
-
-    if (validFiles.length > 0) {
-      const newUploadedFiles = validFiles.map(file => ({
-        id: crypto.randomUUID(),
-        file,
-        previewUrl: URL.createObjectURL(file),
-        uploadProgress: 100,
-        status: 'uploaded' as const
-      }))
-
-      setUploadedFiles(prev => [...prev, ...newUploadedFiles])
-      onUpload(validFiles)
-    }
-  }, [uploadedFiles.length, maxFiles, validateFile, onUpload])
-
+  // Handle drag events
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
-    if (disabled) return
-
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setIsDragActive(true)
+      setDragActive(true)
     } else if (e.type === 'dragleave') {
-      setIsDragActive(false)
+      setDragActive(false)
     }
-  }, [disabled])
+  }, [])
 
+  // Handle drop
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragActive(false)
+    setDragActive(false)
 
     if (disabled) return
 
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      handleFiles(files)
-    }
-  }, [disabled, handleFiles])
+    const files = Array.from(e.dataTransfer.files)
+    handleFiles(files)
+  }, [disabled])
 
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files.length > 0) {
-      handleFiles(files)
-    }
+  // Handle file input change
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    if (disabled) return
+
+    const files = Array.from(e.target.files || [])
+    handleFiles(files)
+
     // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    if (inputRef.current) {
+      inputRef.current.value = ''
     }
-  }, [handleFiles])
+  }, [disabled])
 
-  const removeFile = useCallback((fileId: string) => {
-    setUploadedFiles(prev => {
-      const updatedFiles = prev.filter(file => {
-        if (file.id === fileId) {
-          URL.revokeObjectURL(file.previewUrl)
-          return false
-        }
-        return true
-      })
-      return updatedFiles
+  // Process and validate files
+  const handleFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return
+
+    const newErrors: string[] = []
+    const validFiles: File[] = []
+
+    // Check total files limit
+    if (existingFiles.length + files.length > maxFiles) {
+      newErrors.push(`Maximum ${maxFiles} files allowed. Currently have ${existingFiles.length}.`)
+      return
+    }
+
+    files.forEach(file => {
+      // Check file type
+      if (!acceptedTypes.includes(file.type)) {
+        newErrors.push(`${file.name}: Invalid file type. Accepted: ${acceptedTypes.join(', ')}`)
+        return
+      }
+
+      // Check file size
+      if (file.size > maxSize) {
+        newErrors.push(`${file.name}: File too large (${Math.round(file.size / 1024 / 1024)}MB). Max: ${Math.round(maxSize / 1024 / 1024)}MB`)
+        return
+      }
+
+      // Check for duplicates
+      const isDuplicate = existingFiles.some(existing => 
+        existing.name === file.name && existing.size === file.size
+      )
+
+      if (isDuplicate) {
+        newErrors.push(`${file.name}: File already uploaded`)
+        return
+      }
+
+      validFiles.push(file)
     })
+
+    setErrors(newErrors)
+
+    if (validFiles.length > 0) {
+      setUploading(true)
+      
+      // Simulate upload delay for better UX
+      setTimeout(() => {
+        onFilesSelected(validFiles)
+        setUploading(false)
+      }, 500)
+    }
+  }, [existingFiles, maxFiles, acceptedTypes, maxSize, onFilesSelected])
+
+  // Clear errors after 5 seconds
+  useEffect(() => {
+    if (errors.length > 0) {
+      const timer = setTimeout(() => setErrors([]), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [errors])
+
+  // Click to upload
+  const handleClick = useCallback(() => {
+    if (!disabled && inputRef.current) {
+      inputRef.current.click()
+    }
+  }, [disabled])
+
+  // Remove file
+  const handleRemoveFile = useCallback((id: string, preview: string) => {
+    // Clean up object URL
+    URL.revokeObjectURL(preview)
+    onRemoveFile?.(id)
+  }, [onRemoveFile])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      existingFiles.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview)
+        }
+      })
+    }
   }, [])
 
-  const clearAll = useCallback(() => {
-    uploadedFiles.forEach(file => {
-      URL.revokeObjectURL(file.previewUrl)
-    })
-    setUploadedFiles([])
-  }, [uploadedFiles])
+  const getStatusIcon = (status: ImageFile['status']) => {
+    switch (status) {
+      case 'pending':
+        return <ImageIcon className="w-4 h-4 text-gray-400" />
+      case 'processing':
+        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />
+      case 'failed':
+        return <AlertCircle className="w-4 h-4 text-red-500" />
+      default:
+        return <ImageIcon className="w-4 h-4 text-gray-400" />
+    }
+  }
+
+  const getStatusColor = (status: ImageFile['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'border-gray-200'
+      case 'processing':
+        return 'border-blue-200 bg-blue-50'
+      case 'completed':
+        return 'border-green-200 bg-green-50'
+      case 'failed':
+        return 'border-red-200 bg-red-50'
+      default:
+        return 'border-gray-200'
+    }
+  }
 
   return (
-    <div className={cn("w-full space-y-4", className)}>
+    <div className={`space-y-4 ${className}`}>
       {/* Upload Area */}
       <div
-        className={cn(
-          "relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200",
-          isDragActive
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-            : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500",
-          disabled && "opacity-50 cursor-not-allowed",
-          "focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2"
-        )}
+        ref={uploadRef}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
+        onClick={handleClick}
+        className={`
+          relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+          transition-all duration-300 ease-in-out
+          ${dragActive 
+            ? 'border-blue-500 bg-blue-50' 
+            : 'border-gray-300 hover:border-gray-400'
+          }
+          ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
       >
         <input
-          ref={fileInputRef}
+          ref={inputRef}
           type="file"
           multiple
-          accept={accept}
-          onChange={handleFileInput}
+          accept={acceptedTypes.join(',')}
+          onChange={handleChange}
           disabled={disabled}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+          className="hidden"
           aria-label="Upload images"
         />
-        
-        <div className="space-y-4">
-          <div className="flex justify-center">
-            {isDragActive ? (
-              <Upload className="w-12 h-12 text-blue-500 animate-bounce" />
-            ) : (
-              <ImageIcon className="w-12 h-12 text-gray-400" />
-            )}
-          </div>
-          
-          <div>
-            <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {isDragActive ? 'Drop images here' : 'Drag and drop fashion images here'}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              or click to browse • Max {maxFiles} files • Up to {formatBytes(maxSize)} each
-            </p>
-          </div>
-          
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className={cn(
-              "inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors",
-              disabled && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            <Upload className="w-5 h-5 mr-2" />
-            Choose Images
-          </button>
-        </div>
+
+        <AnimatePresence>
+          {uploading ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="flex flex-col items-center space-y-2"
+            >
+              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+              <p className="text-sm text-gray-600">Processing files...</p>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="flex flex-col items-center space-y-2"
+            >
+              <Upload className={`w-8 h-8 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
+              <div>
+                <p className="text-lg font-medium text-gray-700">
+                  {dragActive ? 'Drop files here' : 'Click to upload or drag and drop'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {acceptedTypes.join(', ').replace(/image\//g, '').toUpperCase()} up to {Math.round(maxSize / 1024 / 1024)}MB each
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {existingFiles.length}/{maxFiles} files
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Uploaded Files Preview */}
-      {uploadedFiles.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              Uploaded Images ({uploadedFiles.length})
-            </h3>
-            <button
-              onClick={clearAll}
-              className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-            >
-              Clear All
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {uploadedFiles.map((file) => (
-              <div key={file.id} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                  <img
-                    src={file.previewUrl}
-                    alt={file.file.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                
-                <button
-                  onClick={() => removeFile(file.id)}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remove image"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 truncate">
-                  {file.file.name}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-500">
-                  {formatBytes(file.file.size)}
-                </div>
+      {/* Error Messages */}
+      <AnimatePresence>
+        {errors.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-2"
+          >
+            {errors.map((error, index) => (
+              <div
+                key={index}
+                className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-md"
+              >
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <p className="text-sm text-red-700">{error}</p>
               </div>
             ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Uploaded Files Grid */}
+      {existingFiles.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-gray-700">
+            Uploaded Files ({existingFiles.length})
+          </h4>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <AnimatePresence>
+              {existingFiles.map((file) => (
+                <motion.div
+                  key={file.id}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className={`
+                    relative group border rounded-lg overflow-hidden
+                    ${getStatusColor(file.status)}
+                  `}
+                >
+                  {/* Image Preview */}
+                  <div className="aspect-square relative">
+                    <img
+                      src={file.preview}
+                      alt={file.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    
+                    {/* Status Overlay */}
+                    <div className="absolute top-2 left-2">
+                      {getStatusIcon(file.status)}
+                    </div>
+
+                    {/* Remove Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemoveFile(file.id, file.preview)
+                      }}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                      title="Remove file"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+
+                    {/* Progress Bar */}
+                    {file.status === 'processing' && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gray-200">
+                        <motion.div
+                          className="h-1 bg-blue-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${file.progress}%` }}
+                          transition={{ duration: 0.3 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* File Info */}
+                  <div className="p-2">
+                    <p className="text-xs font-medium text-gray-700 truncate" title={file.name}>
+                      {file.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {Math.round(file.size / 1024)} KB
+                    </p>
+                    
+                    {file.error && (
+                      <p className="text-xs text-red-600 mt-1" title={file.error}>
+                        {file.error.length > 30 ? `${file.error.substring(0, 30)}...` : file.error}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </div>
       )}
     </div>
   )
 }
+
+// Export types for external use
+export type { ImageFile, ImageUploadProps }

@@ -1,224 +1,413 @@
 import { create } from 'zustand'
-import { persist, subscribeWithSelector } from 'zustand/middleware'
-import { devtools } from 'zustand/middleware'
-import { Category, UploadedImage, ExtractionResult } from '@/types'
+import { devtools, subscribeWithSelector } from 'zustand/middleware'
+import { ExtractionResult, CategoryFormData } from '@/types/fashion'
 
-// Define the status type locally to avoid import issues
-type ExtractionStatus = 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CACHED'
-
-interface ExtractionProgress {
+interface UploadedImage {
   id: string
-  status: ExtractionStatus
+  file: File
+  preview: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
-  estimatedTime?: number
-  currentStep?: string
+  error?: string
+  result?: ExtractionResult
 }
 
-interface ExtractionStore {
-  // State
-  selectedCategory?: Category
+interface ExtractionStats {
+  totalExtractions: number
+  successfulExtractions: number
+  failedExtractions: number
+  averageConfidence: number
+  totalTokensUsed: number
+  totalCost: number
+  processingTime: number
+}
+
+interface ExtractionState {
+  // Core state
+  selectedCategory: CategoryFormData | null
   uploadedImages: UploadedImage[]
   results: ExtractionResult[]
+  
+  // UI state
   isProcessing: boolean
-  currentProgress?: ExtractionProgress
-  error?: string
-
+  currentProgress: number
+  error: string | null
+  
+  // Statistics
+  stats: ExtractionStats
+  
+  // Settings
+  settings: {
+    batchProcessing: boolean
+    maxConcurrentProcessing: number
+    autoRetry: boolean
+    cacheEnabled: boolean
+  }
+  
   // Actions
-  setCategory: (category?: Category) => void
+  setCategory: (category: CategoryFormData | null) => void
   addImages: (files: File[]) => void
-  removeImage: (imageId: string) => void
+  removeImage: (id: string) => void
   clearImages: () => void
-  startExtraction: (imageId: string) => Promise<void>
-  addResult: (result: ExtractionResult) => void
-  clearResults: () => void
-  setError: (error?: string) => void
-  setProcessing: (processing: boolean) => void
-  updateProgress: (progress: ExtractionProgress) => void
+  updateImageStatus: (id: string, status: UploadedImage['status'], progress?: number, error?: string) => void
+  setImageResult: (id: string, result: ExtractionResult) => void
+  startExtraction: (imageId?: string) => Promise<void>
+  startBatchExtraction: () => Promise<void>
+  retryExtraction: (imageId: string) => Promise<void>
+  setError: (error: string | null) => void
+  updateStats: (result: ExtractionResult) => void
+  resetStats: () => void
+  updateSettings: (settings: Partial<ExtractionState['settings']>) => void
+  
+  // Cleanup
+  cleanup: () => void
 }
 
-export const useExtractionStore = create<ExtractionStore>()(
+const initialStats: ExtractionStats = {
+  totalExtractions: 0,
+  successfulExtractions: 0,
+  failedExtractions: 0,
+  averageConfidence: 0,
+  totalTokensUsed: 0,
+  totalCost: 0,
+  processingTime: 0
+}
+
+const initialSettings = {
+  batchProcessing: true,
+  maxConcurrentProcessing: 3,
+  autoRetry: false,
+  cacheEnabled: true
+}
+
+export const useExtractionStore = create<ExtractionState>()(
   devtools(
     subscribeWithSelector(
-      persist(
-        (set, get) => ({
-          // Initial state
-          uploadedImages: [],
-          results: [],
-          isProcessing: false,
+      (set, get) => ({
+        // Initial state
+        selectedCategory: null,
+        uploadedImages: [],
+        results: [],
+        isProcessing: false,
+        currentProgress: 0,
+        error: null,
+        stats: initialStats,
+        settings: initialSettings,
 
-          // Actions
-          setCategory: (category) => set({ selectedCategory: category }),
+        // Set selected category
+        setCategory: (category) => {
+          set({ selectedCategory: category, error: null })
+          
+          // Clear images if category changes to avoid confusion
+          const current = get().selectedCategory
+          if (current && category && current.categoryId !== category.categoryId) {
+            get().clearImages()
+          }
+        },
 
-          addImages: (files) => {
-            const newImages: UploadedImage[] = files.map(file => ({
+        // Add images with validation and preview generation
+        addImages: (files) => {
+          const currentImages = get().uploadedImages
+          const maxImages = 10 // Reasonable limit
+          
+          if (currentImages.length + files.length > maxImages) {
+            set({ error: `Maximum ${maxImages} images allowed` })
+            return
+          }
+          
+          const newImages: UploadedImage[] = files.map(file => {
+            // Validate file
+            if (!file.type.startsWith('image/')) {
+              return null
+            }
+            
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+              return null
+            }
+            
+            return {
               id: crypto.randomUUID(),
               file,
-              previewUrl: URL.createObjectURL(file),
-              uploadProgress: 100,
-              status: 'uploaded'
-            }))
-            set(state => ({ 
-              uploadedImages: [...state.uploadedImages, ...newImages] 
-            }))
-          },
-
-          removeImage: (imageId) => {
-            const { uploadedImages } = get()
-            const image = uploadedImages.find(img => img.id === imageId)
-            if (image) {
-              URL.revokeObjectURL(image.previewUrl)
+              preview: URL.createObjectURL(file),
+              status: 'pending' as const,
+              progress: 0
             }
-            set(state => ({
-              uploadedImages: state.uploadedImages.filter(img => img.id !== imageId)
-            }))
-          },
+          }).filter(Boolean) as UploadedImage[]
+          
+          set({
+            uploadedImages: [...currentImages, ...newImages],
+            error: null
+          })
+        },
 
-          clearImages: () => {
-            const { uploadedImages } = get()
-            uploadedImages.forEach(image => {
-              URL.revokeObjectURL(image.previewUrl)
-            })
-            set({ uploadedImages: [] })
-          },
-
-          startExtraction: async (imageId) => {
-            const { selectedCategory, uploadedImages } = get()
+        // Remove single image
+        removeImage: (id) => {
+          const images = get().uploadedImages
+          const imageToRemove = images.find(img => img.id === id)
+          
+          if (imageToRemove) {
+            // Cleanup object URL
+            URL.revokeObjectURL(imageToRemove.preview)
             
-            if (!selectedCategory) {
-              set({ error: 'Please select a category first' })
-              return
-            }
-
-            const image = uploadedImages.find(img => img.id === imageId)
-            if (!image) {
-              set({ error: 'Image not found' })
-              return
-            }
-
-            set({ 
-              isProcessing: true, 
-              error: undefined,
-              currentProgress: {
-                id: imageId,
-                status: 'PROCESSING' as ExtractionStatus,
-                progress: 0,
-                estimatedTime: 5000,
-                currentStep: 'Uploading image...'
-              }
+            set({
+              uploadedImages: images.filter(img => img.id !== id),
+              results: get().results.filter(result => result.id !== id)
             })
+          }
+        },
 
-            try {
-              // Update image status
-              set(state => ({
-                uploadedImages: state.uploadedImages.map(img =>
-                  img.id === imageId ? { ...img, status: 'processing' } : img
-                )
-              }))
+        // Clear all images
+        clearImages: () => {
+          // Cleanup all object URLs
+          get().uploadedImages.forEach(img => {
+            URL.revokeObjectURL(img.preview)
+          })
+          
+          set({
+            uploadedImages: [],
+            results: [],
+            currentProgress: 0,
+            error: null,
+            isProcessing: false
+          })
+        },
 
-              // Simulate progress updates
-              const progressSteps = [
-                { progress: 20, step: 'Processing image...' },
-                { progress: 50, step: 'Analyzing with AI...' },
-                { progress: 80, step: 'Extracting attributes...' },
-                { progress: 95, step: 'Finalizing results...' }
-              ]
+        // Update image status
+        updateImageStatus: (id, status, progress = 0, error) => {
+          set({
+            uploadedImages: get().uploadedImages.map(img =>
+              img.id === id ? { ...img, status, progress, error } : img
+            )
+          })
+          
+          // Update overall progress
+          const images = get().uploadedImages
+          const totalProgress = images.reduce((sum, img) => sum + img.progress, 0)
+          const averageProgress = images.length > 0 ? totalProgress / images.length : 0
+          
+          set({ currentProgress: averageProgress })
+        },
 
-              for (const { progress, step } of progressSteps) {
-                await new Promise(resolve => setTimeout(resolve, 500))
-                set(state => ({
-                  currentProgress: state.currentProgress ? {
-                    ...state.currentProgress,
-                    progress,
-                    currentStep: step
-                  } : undefined
-                }))
-              }
+        // Set extraction result
+        setImageResult: (id, result) => {
+          set({
+            results: [...get().results.filter(r => r.id !== id), result]
+          })
+          
+          get().updateImageStatus(id, 'completed', 100)
+          get().updateStats(result)
+        },
 
-              // Call extraction API
-              const formData = new FormData()
-              formData.append('image', image.file)
-              formData.append('categoryId', selectedCategory.id)
-
-              const response = await fetch('/api/extract/simulate', {
-                method: 'POST',
-                body: formData
-              })
-
-              if (!response.ok) {
-                throw new Error('Extraction failed')
-              }
-
-              const result = await response.json()
-
-              if (!result.success) {
-                throw new Error(result.error || 'Extraction failed')
-              }
-
-              // Update stores
-              set(state => ({
-                results: [...state.results, result.data],
-                uploadedImages: state.uploadedImages.map(img =>
-                  img.id === imageId ? { ...img, status: 'completed' } : img
-                ),
-                currentProgress: {
-                  id: imageId,
-                  status: 'COMPLETED' as ExtractionStatus,
-                  progress: 100,
-                  currentStep: 'Completed!'
-                }
-              }))
-
-              // Clear progress after delay
-              setTimeout(() => {
-                set({ currentProgress: undefined })
-              }, 2000)
-
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-              
-              set(state => ({
-                error: errorMessage,
-                uploadedImages: state.uploadedImages.map(img =>
-                  img.id === imageId ? { ...img, status: 'error' } : img
-                ),
-                currentProgress: {
-                  id: imageId,
-                  status: 'FAILED' as ExtractionStatus,
-                  progress: 0,
-                  currentStep: `Error: ${errorMessage}`
-                }
-              }))
-
-              // Clear progress after delay
-              setTimeout(() => {
-                set({ currentProgress: undefined })
-              }, 3000)
-            } finally {
-              set({ isProcessing: false })
+        // Start single extraction
+        startExtraction: async (imageId) => {
+          const { selectedCategory, uploadedImages } = get()
+          
+          if (!selectedCategory) {
+            set({ error: 'Please select a category first' })
+            return
+          }
+          
+          const image = imageId 
+            ? uploadedImages.find(img => img.id === imageId)
+            : uploadedImages.find(img => img.status === 'pending')
+          
+          if (!image) {
+            set({ error: 'No image found for extraction' })
+            return
+          }
+          
+          set({ isProcessing: true, error: null })
+          get().updateImageStatus(image.id, 'processing', 10)
+          
+          try {
+            // Prepare form data
+            const formData = new FormData()
+            formData.append('file', image.file)
+            formData.append('categoryId', selectedCategory.categoryId)
+            formData.append('options', JSON.stringify({
+              cacheEnabled: get().settings.cacheEnabled
+            }))
+            
+            // Update progress
+            get().updateImageStatus(image.id, 'processing', 30)
+            
+            // Make API call
+            const response = await fetch('/api/extract', {
+              method: 'POST',
+              body: formData
+            })
+            
+            get().updateImageStatus(image.id, 'processing', 70)
+            
+            const result = await response.json()
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Extraction failed')
             }
-          },
+            
+            // Create extraction result
+            const extractionResult: ExtractionResult = {
+              id: result.data.extraction.id,
+              fileName: image.file.name,
+              status: 'completed',
+              attributes: result.data.extraction.attributes,
+              confidence: result.data.extraction.confidence,
+              tokensUsed: result.data.performance.tokensUsed,
+              processingTime: result.data.performance.aiProcessingTime,
+              createdAt: result.data.timestamp,
+              fromCache: result.data.extraction.fromCache
+            }
+            
+            get().setImageResult(image.id, extractionResult)
+            
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+            get().updateImageStatus(image.id, 'failed', 0, errorMessage)
+            set({ error: errorMessage })
+          } finally {
+            set({ isProcessing: false })
+          }
+        },
 
-          addResult: (result) => set(state => ({
-            results: [...state.results, result]
-          })),
+        // Start batch extraction
+        startBatchExtraction: async () => {
+          const { uploadedImages, settings } = get()
+          const pendingImages = uploadedImages.filter(img => img.status === 'pending')
+          
+          if (pendingImages.length === 0) {
+            set({ error: 'No images to process' })
+            return
+          }
+          
+          set({ isProcessing: true, error: null })
+          
+          if (settings.batchProcessing) {
+            // Process in batches with concurrency limit
+            const batches: UploadedImage[][] = []
+            for (let i = 0; i < pendingImages.length; i += settings.maxConcurrentProcessing) {
+              batches.push(pendingImages.slice(i, i + settings.maxConcurrentProcessing))
+            }
+            
+            for (const batch of batches) {
+              await Promise.allSettled(
+                batch.map(image => get().startExtraction(image.id))
+              )
+            }
+          } else {
+            // Process sequentially
+            for (const image of pendingImages) {
+              await get().startExtraction(image.id)
+            }
+          }
+          
+          set({ isProcessing: false })
+        },
 
-          clearResults: () => set({ results: [] }),
+        // Retry failed extraction
+        retryExtraction: async (imageId) => {
+          get().updateImageStatus(imageId, 'pending', 0)
+          await get().startExtraction(imageId)
+        },
+
+        // Set error message
+        setError: (error) => set({ error }),
+
+        // Update statistics
+        updateStats: (result) => {
+          const currentStats = get().stats
+          const isSuccess = result.status === 'completed'
           
-          setError: (error) => set({ error }),
+          const newStats: ExtractionStats = {
+            totalExtractions: currentStats.totalExtractions + 1,
+            successfulExtractions: currentStats.successfulExtractions + (isSuccess ? 1 : 0),
+            failedExtractions: currentStats.failedExtractions + (isSuccess ? 0 : 1),
+            averageConfidence: isSuccess 
+              ? (currentStats.averageConfidence * currentStats.successfulExtractions + result.confidence) / (currentStats.successfulExtractions + 1)
+              : currentStats.averageConfidence,
+            totalTokensUsed: currentStats.totalTokensUsed + result.tokensUsed,
+            totalCost: currentStats.totalCost + (result.tokensUsed * 0.00015), // Approximate cost
+            processingTime: currentStats.processingTime + result.processingTime
+          }
           
-          setProcessing: (processing) => set({ isProcessing: processing }),
-          
-          updateProgress: (progress) => set({ currentProgress: progress })
+          set({ stats: newStats })
+        },
+
+        // Reset statistics
+        resetStats: () => set({ stats: initialStats }),
+
+        // Update settings
+        updateSettings: (newSettings) => set({
+          settings: { ...get().settings, ...newSettings }
         }),
-        {
-          name: 'extraction-store',
-          partialize: (state) => ({
-            selectedCategory: state.selectedCategory,
-            results: state.results.slice(-5) // Keep only last 5 results
+
+        // Cleanup resources
+        cleanup: () => {
+          // Cleanup object URLs
+          get().uploadedImages.forEach(img => {
+            URL.revokeObjectURL(img.preview)
+          })
+          
+          // Reset to initial state
+          set({
+            selectedCategory: null,
+            uploadedImages: [],
+            results: [],
+            isProcessing: false,
+            currentProgress: 0,
+            error: null,
+            stats: initialStats
           })
         }
-      )
-    ),
-    { name: 'ExtractionStore' }
+      }),
+      {
+        name: 'extraction-store',
+        version: 1
+      }
+    )
   )
 )
+
+// Selectors for optimized re-renders
+export const useExtractionSelectors = {
+  // Basic selectors
+  selectedCategory: () => useExtractionStore(state => state.selectedCategory),
+  uploadedImages: () => useExtractionStore(state => state.uploadedImages),
+  results: () => useExtractionStore(state => state.results),
+  isProcessing: () => useExtractionStore(state => state.isProcessing),
+  error: () => useExtractionStore(state => state.error),
+  
+  // Computed selectors
+  pendingImages: () => useExtractionStore(state => 
+    state.uploadedImages.filter(img => img.status === 'pending')
+  ),
+  
+  processingImages: () => useExtractionStore(state => 
+    state.uploadedImages.filter(img => img.status === 'processing')
+  ),
+  
+  completedImages: () => useExtractionStore(state => 
+    state.uploadedImages.filter(img => img.status === 'completed')
+  ),
+  
+  failedImages: () => useExtractionStore(state => 
+    state.uploadedImages.filter(img => img.status === 'failed')
+  ),
+  
+  // Stats selectors
+  successRate: () => useExtractionStore(state => {
+    const total = state.stats.totalExtractions
+    return total > 0 ? (state.stats.successfulExtractions / total) * 100 : 0
+  }),
+  
+  averageProcessingTime: () => useExtractionStore(state => {
+    const total = state.stats.totalExtractions
+    return total > 0 ? state.stats.processingTime / total : 0
+  })
+}
+
+// Cleanup on page unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    useExtractionStore.getState().cleanup()
+  })
+}

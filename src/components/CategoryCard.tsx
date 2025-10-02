@@ -1,162 +1,222 @@
 'use client'
+import React, { memo } from 'react'
+import { motion } from 'framer-motion'
+import { 
+  CheckCircle, 
+  Circle, 
+  Layers, 
+  TrendingUp, 
+  Zap 
+} from 'lucide-react'
+import { CategoryFormData } from '@/types/fashion'
 
-import { Category } from '@/types'
-import { Check, Tag, Settings } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface CategoryCardProps {
-  category: Category
+  category: {
+    id: string
+    name: string
+    description: string
+    department: string
+    subDepartment: string
+    enabledAttributes: number
+    totalAttributes: number
+    isActive: boolean
+    completeness?: number
+    
+  }
   isSelected: boolean
-  onSelect: (category: Category) => void
-  showDetails?: boolean
+  onSelect: (category: CategoryFormData) => void
+  disabled?: boolean
+  showStats?: boolean
   className?: string
 }
 
-export default function CategoryCard({ 
-  category, 
-  isSelected, 
-  onSelect, 
-  showDetails = true,
-  className 
+const CategoryCard = memo(function CategoryCard({
+  category,
+  isSelected,
+  onSelect,
+  disabled = false,
+  showStats = true,
+  className = ''
 }: CategoryCardProps) {
-  const activeAttributes = category.attributes?.filter(attr => attr.isActive) || []
-  const aiExtractableCount = activeAttributes.filter(attr => attr.aiExtractable).length
+  
+  const completenessPercentage = category.completeness || 
+    Math.round((category.enabledAttributes / Math.max(category.totalAttributes, 1)) * 100)
+
+  const handleSelect = async () => {
+    if (disabled) return
+    
+    try {
+      // Fetch full category data
+      const response = await fetch(`/api/categories/${category.id}/form`)
+      const result = await response.json()
+      
+      if (result.success) {
+        onSelect(result.data)
+      } else {
+        console.error('Failed to load category:', result.error)
+      }
+    } catch (error) {
+      console.error('Failed to load category:', error)
+    }
+  }
+
+  const getCompletenessColor = (percentage: number) => {
+    if (percentage >= 80) return 'text-green-500'
+    if (percentage >= 60) return 'text-yellow-500'
+    return 'text-red-500'
+  }
+
+  const getDepartmentIcon = (department: string) => {
+    switch (department) {
+      case 'KIDS':
+        return '👶'
+      case 'MENS':
+        return '👨'
+      case 'LADIES':
+        return '👩'
+      default:
+        return '👔'
+    }
+  }
+
+  const getDepartmentColor = (department: string) => {
+    switch (department) {
+      case 'KIDS':
+        return 'bg-purple-100 text-purple-800'
+      case 'MENS':
+        return 'bg-blue-100 text-blue-800'
+      case 'LADIES':
+        return 'bg-pink-100 text-pink-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
 
   return (
-    <div
-      className={cn(
-        "relative border rounded-lg p-6 cursor-pointer transition-all duration-200 hover:shadow-lg group",
-        isSelected
-          ? "border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200 dark:bg-blue-900/20 dark:border-blue-400 dark:ring-blue-800"
-          : "border-gray-200 hover:border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-700 dark:hover:border-gray-600",
-        "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-        className
-      )}
-      onClick={() => onSelect(category)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect(category)
+    <motion.div
+      whileHover={{ scale: disabled ? 1 : 1.02, y: disabled ? 0 : -2 }}
+      whileTap={{ scale: disabled ? 1 : 0.98 }}
+      onClick={handleSelect}
+      className={`
+        relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200
+        ${isSelected 
+          ? 'border-blue-500 bg-blue-50 shadow-md' 
+          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
         }
-      }}
-      aria-pressed={isSelected}
-      aria-label={`Select ${category.name} category`}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+        ${!category.isActive ? 'opacity-75' : ''}
+        ${className}
+      `}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
       {/* Selection Indicator */}
-      {isSelected && (
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center">
-          <Check className="w-4 h-4" />
+      <div className="absolute top-3 right-3">
+        {isSelected ? (
+          <CheckCircle className="w-5 h-5 text-blue-500" />
+        ) : (
+          <Circle className="w-5 h-5 text-gray-300" />
+        )}
+      </div>
+
+      {/* Header */}
+      <div className="mb-3">
+        <div className="flex items-start space-x-2 mb-2">
+          <span className="text-2xl">{getDepartmentIcon(category.department)}</span>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900 truncate" title={category.name}>
+              {category.name}
+            </h3>
+            <div className="flex items-center space-x-2 mt-1">
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDepartmentColor(category.department)}`}>
+                {category.department}
+              </span>
+              <span className="text-xs text-gray-500">
+                {category.subDepartment}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <p className="text-sm text-gray-600 line-clamp-2" title={category.description}>
+          {category.description}
+        </p>
+      </div>
+
+      {/* Stats */}
+      {showStats && (
+        <div className="space-y-2">
+          {/* Attributes */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1">
+              <Layers className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-600">Attributes</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {category.enabledAttributes}/{category.totalAttributes}
+            </span>
+          </div>
+
+          {/* Completeness Bar */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Completeness</span>
+              <span className={`text-xs font-medium ${getCompletenessColor(completenessPercentage)}`}>
+                {completenessPercentage}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <motion.div
+                className={`h-1.5 rounded-full ${
+                  completenessPercentage >= 80 ? 'bg-green-500' :
+                  completenessPercentage >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                }`}
+                initial={{ width: 0 }}
+                animate={{ width: `${completenessPercentage}%` }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+              />
+            </div>
+          </div>
+
+          {/* Additional Stats */}
+          <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+            <div className="flex items-center space-x-1">
+              <TrendingUp className="w-3 h-3" />
+              <span>AI Ready</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <Zap className="w-3 h-3" />
+              <span>Fast Extract</span>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="space-y-3">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-2">
-            <Tag className={cn(
-              "w-5 h-5",
-              isSelected ? "text-blue-600" : "text-gray-500"
-            )} />
-            <h3 className={cn(
-              "text-lg font-semibold",
-              isSelected ? "text-blue-900 dark:text-blue-100" : "text-gray-900 dark:text-gray-100"
-            )}>
-              {category.name}
-            </h3>
-          </div>
-          
-          <Settings className={cn(
-            "w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity",
-            isSelected ? "text-blue-600" : "text-gray-400"
-          )} />
+      {/* Status Badge */}
+      {!category.isActive && (
+        <div className="absolute top-3 left-3">
+          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+            Inactive
+          </span>
         </div>
+      )}
 
-        {/* Description */}
-        {category.description && (
-          <p className={cn(
-            "text-sm leading-relaxed",
-            isSelected ? "text-blue-700 dark:text-blue-200" : "text-gray-600 dark:text-gray-300"
-          )}>
-            {category.description}
-          </p>
-        )}
-
-        {/* Details */}
-        {showDetails && (
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-4">
-              <span className={cn(
-                "flex items-center space-x-1",
-                isSelected ? "text-blue-600 dark:text-blue-300" : "text-gray-500 dark:text-gray-400"
-              )}>
-                <span className="font-medium">{activeAttributes.length}</span>
-                <span>attributes</span>
-              </span>
-              
-              <span className={cn(
-                "flex items-center space-x-1",
-                isSelected ? "text-blue-600 dark:text-blue-300" : "text-gray-500 dark:text-gray-400"
-              )}>
-                <span className="font-medium">{aiExtractableCount}</span>
-                <span>AI-enabled</span>
-              </span>
-            </div>
-
-            {/* Active Status */}
-            <div className={cn(
-              "px-2 py-1 rounded-full text-xs font-medium",
-              category.isActive
-                ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
-            )}>
-              {category.isActive ? 'Active' : 'Inactive'}
-            </div>
-          </div>
-        )}
-
-        {/* Attributes Preview */}
-        {showDetails && activeAttributes.length > 0 && (
-          <div className="space-y-2">
-            <div className={cn(
-              "text-xs font-medium",
-              isSelected ? "text-blue-700 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"
-            )}>
-              Key Attributes:
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {activeAttributes.slice(0, 4).map((attr) => (
-                <span
-                  key={attr.id}
-                  className={cn(
-                    "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                    isSelected
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-800/30 dark:text-blue-300"
-                      : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
-                    !attr.aiExtractable && "opacity-60"
-                  )}
-                >
-                  {attr.label}
-                  {!attr.aiExtractable && (
-                    <span className="ml-1 opacity-60">•</span>
-                  )}
-                </span>
-              ))}
-              {activeAttributes.length > 4 && (
-                <span className={cn(
-                  "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                  isSelected
-                    ? "bg-blue-100 text-blue-700 dark:bg-blue-800/30 dark:text-blue-300"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                )}>
-                  +{activeAttributes.length - 4} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      {/* Hover Effect */}
+      <motion.div
+        className="absolute inset-0 rounded-lg pointer-events-none"
+        initial={{ opacity: 0 }}
+        whileHover={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        <div className={`
+          w-full h-full rounded-lg 
+          ${isSelected ? 'bg-blue-500/5' : 'bg-gray-900/5'}
+        `} />
+      </motion.div>
+    </motion.div>
   )
-}
+})
+
+export default CategoryCard

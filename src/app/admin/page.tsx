@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Settings, BarChart3 } from 'lucide-react'
 import { Category } from '@/types'
 import CategoryCard from '@/components/CategoryCard'
+import { CategoryFormData } from '@/types/fashion'
 
 export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFormData | null>(null)
 
   useEffect(() => {
     fetchCategories()
@@ -139,7 +140,7 @@ export default function AdminPage() {
                     key={category.id}
                     category={category}
                     isSelected={selectedCategory?.id === category.id}
-                    onSelect={setSelectedCategory}
+                    onSelect={(c) => setSelectedCategory(c)}
                   />
                 ))}
               </div>

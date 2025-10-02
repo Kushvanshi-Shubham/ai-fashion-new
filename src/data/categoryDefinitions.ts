@@ -1,6 +1,5 @@
 import { CategoryConfig } from "@/types/import-types";
 
-
 export const CATEGORY_DEFINITIONS: CategoryConfig[] = [
   {
     id: "IB_BERMUDA",
@@ -90,29 +89,22 @@ export const CATEGORY_DEFINITIONS: CategoryConfig[] = [
       fab_finish: true,
       fab_construction: true,
       fab_gsm: false,
-
       fab_count: true,
-
       fab_shade: true,
       fab_lycra: true,
       neck: true,
       neck_type: false,
-
       placket: false,
       father_belt: false,
       belt_design: false,
-
       sleeves_main_style: false,
       bottom_fold: false,
       width_inch: false,
-
       front_open_style: false,
       pocket_type: false,
-
       fit: false,
       pattern: true,
       length: false,
-
       drawcord: false,
 
       button: false,
