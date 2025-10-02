@@ -1,159 +1,61 @@
 
 'use client'
-import React, { Suspense } from 'react'
+
+import React from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Sparkles, Zap, Shield, BarChart3, Upload, Brain, Clock } from 'lucide-react'
-import dynamic from 'next/dynamic'
-import { useExtraction } from '@/hooks/useExtraction'
-import { useCategoryManagement } from '@/hooks/useExtraction'
-import { isCompletedExtraction, ExtractionResult, CategoryFormData } from '@/types/fashion'
-
-// Dynamically import heavy components to improve initial load
-const CategoryCard = dynamic(() => import('@/components/CategoryCard'), {
-  loading: () => <CategoryCardSkeleton />,
-  ssr: false
-})
-
-const ImageUpload = dynamic(() => import('@/components/ImageUpload'), {
-  loading: () => <div className="h-32 bg-gray-100 rounded-lg animate-pulse" />,
-  ssr: false
-})
-
-const ExtractionResults = dynamic(() => import('@/components/ExtractionResults'), {
-  loading: () => <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />,
-  ssr: false
-})
-
-// Loading skeleton component
-const CategoryCardSkeleton = () => (
-  <div className="p-4 border-2 border-gray-200 bg-white rounded-lg animate-pulse">
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center space-x-2">
-        <div className="w-8 h-8 bg-gray-300 rounded" />
-        <div className="w-24 h-4 bg-gray-300 rounded" />
-      </div>
-      <div className="w-5 h-5 bg-gray-300 rounded-full" />
-    </div>
-    <div className="space-y-2">
-      <div className="w-full h-3 bg-gray-300 rounded" />
-      <div className="w-3/4 h-3 bg-gray-300 rounded" />
-    </div>
-    <div className="mt-3 space-y-2">
-      <div className="flex justify-between">
-        <div className="w-16 h-3 bg-gray-300 rounded" />
-        <div className="w-8 h-3 bg-gray-300 rounded" />
-      </div>
-      <div className="w-full h-2 bg-gray-200 rounded">
-        <div className="w-1/2 h-2 bg-gray-300 rounded" />
-      </div>
-    </div>
-  </div>
-)
+import { 
+  Sparkles, 
+  Zap, 
+  Shield, 
+  BarChart3, 
+  Upload, 
+  Brain, 
+  Clock,
+  ArrowRight,
+  Tags,
+  Database
+} from 'lucide-react'
 
 export default function HomePage() {
-  const {
-    selectedCategory,
-    uploadedImages,
-    results,
-    isProcessing,
-    error,
-    stats,
-    selectCategory,
-    addImages,
-    startExtraction,
-    retryExtraction,
-    clearError,
-    canStartExtraction
-  } = useExtraction({
-    autoProcess: false,
-    retryOnError: false,
-    onSuccess: (result) => {
-      console.log('Extraction completed:', result)
+  const features = [
+    {
+      icon: <Tags className="w-6 h-6" />,
+      title: "Category-Driven Extraction",
+      description: "Select Department → Sub-department → Category to define exactly which attributes to extract",
+      color: "from-blue-500 to-cyan-500"
     },
-    onError: (error) => {
-      console.error('Extraction error:', error)
+    {
+      icon: <Brain className="w-6 h-6" />,
+      title: "AI-Powered Analysis", 
+      description: "GPT-4 Vision analyzes images and extracts only relevant attributes for your selected category",
+      color: "from-purple-500 to-pink-500"
+    },
+    {
+      icon: <Zap className="w-6 h-6" />,
+      title: "Fast & Accurate",
+      description: "Get precise fashion attribute extraction in seconds with industry-leading accuracy",
+      color: "from-orange-500 to-red-500"
+    },
+    {
+      icon: <Database className="w-6 h-6" />,
+      title: "Rich Data Tables",
+      description: "Export results to Excel, CSV, or JSON with comprehensive data management features", 
+      color: "from-green-500 to-emerald-500"
     }
-  })
+  ]
 
-  const { 
-    categories, 
-    loading: categoriesLoading, 
-    error: categoriesError,
-    loadCategories 
-  } = useCategoryManagement()
-
-  // Handle image upload
-  const handleImageUpload = (files: File[]) => {
-    addImages(files)
-    clearError()
-  }
-
-  type MaybeCategory = Partial<CategoryFormData> & { id?: string; categoryId?: string; categoryName?: string }
-
-  // Handle category selection (receives full CategoryFormData from CategoryCard)
-  const handleCategorySelect = (category: CategoryFormData) => {
-    selectCategory(category)
-    clearError()
-  }
-
-  // Handle extraction start
-  const handleStartExtraction = async () => {
-    if (!canStartExtraction) {
-      if (!selectedCategory) {
-        // Error handling is done in the hook
-        return
-      }
-    }
-    
-    await startExtraction()
-  }
-
-  // Handle retry
-  const handleRetryExtraction = async (resultId: string) => {
-    const imageId = uploadedImages.find(img => img.id === resultId)?.id
-    if (imageId) {
-      await retryExtraction(imageId)
-    }
-  }
-
-  // Handle file download
-  const handleDownloadResult = (result: ExtractionResult) => {
-    const base = {
-      fileName: result.fileName,
-      status: result.status,
-      createdAt: result.createdAt
-    }
-
-    const completedFields = result.status === 'completed' ? {
-      confidence: typeof result.confidence === 'number' ? result.confidence : undefined,
-      attributes: result.attributes ?? {},
-      processingTime: typeof result.processingTime === 'number' ? result.processingTime : undefined,
-      tokensUsed: typeof result.tokensUsed === 'number' ? result.tokensUsed : undefined
-    } : {}
-
-    const data = { ...base, ...completedFields }
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { 
-      type: 'application/json' 
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `extraction-${result.fileName}-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  // Clear all data
-  const handleClearAll = () => {
-    // This would be handled by the store's cleanup method
-    window.location.reload() // Simple approach for now
-  }
+  const stats = [
+    { label: "Categories", value: "283", description: "Across all departments" },
+    { label: "Attributes", value: "80+", description: "Detailed fashion properties" },
+    { label: "Accuracy", value: "95%+", description: "AI extraction precision" },
+    { label: "Speed", value: "3s", description: "Average processing time" }
+  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white/80 backdrop-blur-sm shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -162,323 +64,223 @@ export default function HomePage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">AI Fashion Extractor</h1>
-                <p className="text-sm text-gray-500">v2.0 - Advanced AI Analysis</p>
+                <p className="text-sm text-gray-500">v2.0 - Category-Driven Analysis</p>
               </div>
             </div>
 
-            {/* Stats in header */}
-            {stats.total > 0 && (
-              <div className="flex items-center space-x-6 text-sm">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-900">{stats.total}</div>
-                  <div className="text-gray-500">Processed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-green-600">{stats.successRate}%</div>
-                  <div className="text-gray-500">Success</div>
-                </div>
-                {stats.completed > 0 && (
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-blue-600">
-                      {Math.round(stats.completed > 0 ? results.filter((r) => r.status === 'completed').reduce((sum, r) => sum + (isCompletedExtraction(r) ? r.confidence : 0), 0) / stats.completed : 0)}%
-                    </div>
-                    <div className="text-gray-500">Avg Confidence</div>
-                  </div>
-                )}
-              </div>
-            )}
+            <nav className="flex items-center space-x-4">
+              <Link
+                href="/admin"
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Admin
+              </Link>
+              <Link
+                href="/analytics" 
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Analytics
+              </Link>
+              <Link
+                href="/rich-tables"
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Rich Tables
+              </Link>
+            </nav>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="text-center py-16"
         >
-          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium mb-4">
+          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
             <span>Powered by GPT-4 Vision</span>
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            AI-Powered Fashion Analysis
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+            AI-Powered Fashion 
+            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {' '}Analysis
+            </span>
           </h1>
           
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Upload fashion images and let our advanced AI extract detailed attributes 
-            like color, material, style, and more with industry-leading accuracy.
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-12">
+            Revolutionary category-driven extraction system. Select your fashion category, 
+            upload images, and get precise AI analysis of only the attributes that matter.
           </p>
 
-          {/* Feature highlights */}
-          <div className="flex items-center justify-center space-x-8 text-sm text-gray-500">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4" />
-              <span>3s Processing</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4" />
-              <span>95%+ Accuracy</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Shield className="w-4 h-4" />
-              <span>Advanced AI</span>
-            </div>
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
+            <Link href="/category-workflow">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2"
+              >
+                <Upload className="w-5 h-5" />
+                <span>Start Category Workflow</span>
+                <ArrowRight className="w-5 h-5" />
+              </motion.button>
+            </Link>
+            
+            <Link href="/rich-tables">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-full sm:w-auto bg-white text-gray-700 border-2 border-gray-300 px-8 py-4 rounded-lg font-semibold text-lg hover:border-gray-400 transition-all duration-200 flex items-center justify-center space-x-2"
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span>View Rich Tables</span>
+              </motion.button>
+            </Link>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
+            {stats.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="text-center"
+              >
+                <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                <div className="text-sm font-medium text-gray-600 mb-1">{stat.label}</div>
+                <div className="text-xs text-gray-500">{stat.description}</div>
+              </motion.div>
+            ))}
           </div>
         </motion.div>
 
-        {/* Error Display */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full" />
-                <span className="text-red-800 font-medium">Error</span>
-              </div>
-              <button
-                onClick={clearError}
-                className="text-red-600 hover:text-red-800 text-sm"
-              >
-                Dismiss
-              </button>
-            </div>
-            <p className="text-red-700 mt-1">{error}</p>
-          </motion.div>
-        )}
+        {/* Features Section */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="pb-16"
+        >
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Revolutionary Category-Driven Approach
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Unlike traditional tools that extract everything, our system only analyzes 
+              attributes relevant to your selected fashion category.
+            </p>
+          </div>
 
-        {/* Categories Error */}
-        {categoriesError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                <span className="text-yellow-800 font-medium">Categories Loading Error</span>
-              </div>
-              <button
-                onClick={() => loadCategories()}
-                className="text-yellow-600 hover:text-yellow-800 text-sm"
-              >
-                Retry
-              </button>
-            </div>
-            <p className="text-yellow-700 mt-1">{categoriesError}</p>
-          </motion.div>
-        )}
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Column - Upload and Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Upload Section */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white rounded-lg shadow-sm border p-6"
-            >
-              <div className="flex items-center space-x-2 mb-4">
-                <Upload className="w-5 h-5 text-blue-500" />
-                <h2 className="text-lg font-semibold text-gray-900">Upload Fashion Images</h2>
-              </div>
-              
-              <p className="text-gray-600 text-sm mb-4">
-                Drag and drop or click to upload images of clothing items for AI analysis
-              </p>
-
-              <Suspense fallback={<div className="h-32 bg-gray-100 rounded-lg animate-pulse" />}>
-                <ImageUpload
-                  onFilesSelected={handleImageUpload}
-                  disabled={isProcessing}
-                  existingFiles={uploadedImages.map(img => ({
-                    id: img.id,
-                    name: img.file.name,
-                    size: img.file.size,
-                    type: img.file.type,
-                    preview: img.preview,
-                    status: img.status,
-                    progress: img.progress,
-                    error: img.error
-                  }))}
-                  onRemoveFile={() => {
-                    // TODO: wire up to store's removeImage(id) once exposed by the hook
-                  }}
-                />
-              </Suspense>
-            </motion.div>
-
-            {/* Action Buttons */}
-            {uploadedImages.length > 0 && (
+          <div className="grid md:grid-cols-2 gap-8">
+            {features.map((feature, index) => (
               <motion.div
+                key={feature.title}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-lg shadow-sm border p-6"
+                transition={{ delay: 0.5 + index * 0.1 }}
+                className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-all duration-200"
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      {uploadedImages.length} image{uploadedImages.length !== 1 ? 's' : ''} ready
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      {selectedCategory ? `Category: ${selectedCategory.categoryName}` : 'No category selected'}
-                    </span>
+                <div className="flex items-start space-x-4">
+                  <div className={`w-12 h-12 bg-gradient-to-br ${feature.color} rounded-lg flex items-center justify-center text-white`}>
+                    {feature.icon}
                   </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={handleStartExtraction}
-                      disabled={!canStartExtraction}
-                      className={`
-                        flex-1 px-4 py-2 rounded-md font-medium transition-all duration-200
-                        ${canStartExtraction
-                          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }
-                      `}
-                    >
-                      {isProcessing ? (
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Processing...</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center space-x-2">
-                          <Zap className="w-4 h-4" />
-                          <span>Start Extraction</span>
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={handleClearAll}
-                      disabled={isProcessing}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md font-medium transition-colors"
-                    >
-                      Clear All
-                    </button>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {feature.title}
+                    </h3>
+                    <p className="text-gray-600">
+                      {feature.description}
+                    </p>
                   </div>
                 </div>
               </motion.div>
-            )}
+            ))}
           </div>
+        </motion.div>
 
-          {/* Right Column - Categories and Results */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Category Selection */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white rounded-lg shadow-sm border p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-5 h-5 bg-purple-500 rounded flex items-center justify-center">
-                    <span className="text-white text-xs">🏷️</span>
-                  </div>
-                  <h2 className="text-lg font-semibold text-gray-900">Select Category</h2>
-                </div>
-                
-                {selectedCategory && (
-                  <div className="text-sm text-green-600 font-medium">
-                    ✓ {selectedCategory.categoryName}
-                  </div>
-                )}
-              </div>
-              
-              <p className="text-gray-600 text-sm mb-6">
-                Choose the category that best describes your uploaded items
+        {/* Workflow Preview */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="pb-16"
+        >
+          <div className="bg-white rounded-2xl shadow-sm border p-8">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                Simple 4-Step Workflow
+              </h2>
+              <p className="text-lg text-gray-600">
+                Get started with category-driven AI extraction in just a few clicks
               </p>
-
-              {categoriesLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <CategoryCardSkeleton key={i} />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                  <Suspense fallback={
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <CategoryCardSkeleton key={i} />
-                      ))}
-                    </div>
-                  }>
-                    {categories.map((category) => {
-                      const maybe = category as MaybeCategory
-                      const key = maybe.id ?? maybe.categoryId ?? Math.random().toString(36).slice(2, 8)
-                      return (
-                        <CategoryCard
-                          key={key}
-                          category={category as Partial<CategoryFormData>}
-                          isSelected={selectedCategory?.categoryId === (maybe.id ?? maybe.categoryId)}
-                          onSelect={(cat: CategoryFormData) => handleCategorySelect(cat)}
-                          disabled={isProcessing}
-                        />
-                      )
-                    })}
-                  </Suspense>
-                </div>
-              )}
-            </motion.div>
-
-            {/* Results Section */}
-            {results.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                <Suspense fallback={<div className="h-64 bg-gray-100 rounded-lg animate-pulse" />}>
-                  <ExtractionResults
-                    results={results}
-                    onRetry={handleRetryExtraction}
-                    onDownload={handleDownloadResult}
-                  />
-                </Suspense>
-              </motion.div>
-            )}
-          </div>
-        </div>
-
-        {/* Processing Progress */}
-        {isProcessing && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="fixed inset-x-0 bottom-6 max-w-md mx-auto px-4"
-          >
-            <div className="bg-white rounded-lg shadow-lg border p-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-900">AI Analysis in Progress</div>
-                  <div className="text-xs text-gray-500">
-                    Processing {stats.processing} of {stats.total} images...
-                  </div>
-                </div>
-              </div>
-              
-              {/* Progress bar */}
-              <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${stats.total > 0 ? ((stats.completed + stats.failed) / stats.total) * 100 : 0}%` }}
-                />
-              </div>
             </div>
-          </motion.div>
-        )}
+
+            <div className="grid md:grid-cols-4 gap-6">
+              {[
+                { 
+                  step: 1, 
+                  title: "Select Category", 
+                  description: "Choose Department → Sub-department → Major Category",
+                  icon: <Tags className="w-6 h-6" />
+                },
+                { 
+                  step: 2, 
+                  title: "Review Attributes", 
+                  description: "Preview which attributes will be extracted",
+                  icon: <BarChart3 className="w-6 h-6" />
+                },
+                { 
+                  step: 3, 
+                  title: "Upload Images", 
+                  description: "Add fashion images for AI analysis",
+                  icon: <Upload className="w-6 h-6" />
+                },
+                { 
+                  step: 4, 
+                  title: "Get Results", 
+                  description: "View and export detailed extraction results",
+                  icon: <Shield className="w-6 h-6" />
+                }
+              ].map((item) => (
+                <div key={item.step} className="text-center">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white mx-auto mb-4">
+                    {item.icon}
+                  </div>
+                  <div className="text-sm font-semibold text-blue-600 mb-2">
+                    Step {item.step}
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {item.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center mt-8">
+              <Link href="/category-workflow">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2 mx-auto"
+                >
+                  <Clock className="w-5 h-5" />
+                  <span>Try Category Workflow</span>
+                  <ArrowRight className="w-5 h-5" />
+                </motion.button>
+              </Link>
+            </div>
+          </div>
+        </motion.div>
       </main>
 
       {/* Footer */}
@@ -493,7 +295,7 @@ export default function HomePage() {
               <span>•</span>
               <span>GPT-4 Vision</span>
               <span>•</span>
-              <span>{categories.length} Categories</span>
+              <span>283 Categories</span>
             </div>
           </div>
         </div>

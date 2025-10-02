@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { RichDataTable } from './RichDataTable'
 import { BulkEditOperations } from './BulkEditOperations'
 import { ExtractionResult, isCompletedExtraction } from '@/types/fashion'
-import { useExtractionStore } from '@/store/useExtractionStore'
+
 import { exportExtractionsToXlsx } from '@/lib/export/xlsx'
 import { toast } from 'sonner'
 
@@ -23,7 +23,7 @@ export const ExtractionTableManager: React.FC<ExtractionTableManagerProps> = ({
   className = ''
 }) => {
   const [selectedRows, setSelectedRows] = useState<string[]>([])
-  const { removeImage } = useExtractionStore()
+
 
   // Get selected results
   const selectedResults = useMemo(() => {
