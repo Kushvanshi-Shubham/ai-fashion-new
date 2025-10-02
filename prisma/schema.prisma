@@ -149,8 +149,57 @@ model Extraction {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Relation: events referencing this extraction (zero or one typical, but allow many for future reprocess attempts)
+  events          ExtractionEvent[]
   
   @@map("extractions")
+}
+
+// Fine-grained event log for each API extraction request (successful or failed)
+model ExtractionEvent {
+  id              String   @id @default(uuid())
+  extractionId    String?  // links to persisted Extraction when available
+  extraction      Extraction? @relation(fields: [extractionId], references: [id], onDelete: SetNull)
+
+  categoryCode    String
+  status          ExtractionStatus
+  fromCache       Boolean  @default(false)
+  processingTime  Int?     // ms
+  tokensUsed      Int?     // unified token metric
+  costUsd         Float?   // optional cost estimate
+  errorCode       String?
+  errorMessage    String?
+  aiModel         String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([categoryCode, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("extraction_events")
+}
+
+// Pre-aggregated daily statistics (optional optimization for dashboards)
+model DailyStat {
+  id              String  @id @default(uuid())
+  date            DateTime // normalized to UTC midnight
+  categoryCode    String?
+  total           Int      @default(0)
+  completed       Int      @default(0)
+  failed          Int      @default(0)
+  cached          Int      @default(0)
+  avgProcessingMs Float?   @default(0)
+  avgTokens       Float?   @default(0)
+  totalTokens     Int      @default(0)
+  totalCostUsd    Float?   @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([date, categoryCode])
+  @@index([date])
+  @@map("daily_stats")
 }
 
 enum ExtractionStatus {

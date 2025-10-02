@@ -5,14 +5,38 @@ import { ArrowLeft, TrendingUp, Activity, Zap, DollarSign } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 export default function AnalyticsPage() {
-  const { data: stats } = useQuery({
-    queryKey: ['analytics-stats'],
+  interface AnalyticsSummaryResponse {
+    success: boolean
+    data?: {
+      totals?: {
+        totalEvents: number
+        successCount: number
+        failedCount: number
+        cachedCount: number
+        successRate: number
+        avgProcessingTimeMs: number
+        avgTokens: number
+      }
+      categoryTop?: Array<{
+        categoryCode: string
+        count: number
+        avgProcessingMs: number
+        avgTokens: number
+      }>
+    }
+  }
+
+  const { data: summary, error, isLoading } = useQuery<AnalyticsSummaryResponse>({
+    queryKey: ['analytics-summary'],
     queryFn: async () => {
-      const response = await fetch('/api/analytics/stats')
-      if (!response.ok) throw new Error('Failed to fetch analytics')
-      return response.json()
+      const response = await fetch('/api/analytics/summary')
+      if (!response.ok) throw new Error('Failed to fetch analytics summary')
+      return response.json() as Promise<AnalyticsSummaryResponse>
     }
   })
+
+  const totals = summary?.data?.totals
+  const catTop = summary?.data?.categoryTop
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -40,88 +64,85 @@ export default function AnalyticsPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Extractions</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {stats.totalExtractions.toLocaleString()}
-                </p>
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  +{stats.todayExtractions} today
-                </p>
+        {isLoading && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading analytics...</p>
+        )}
+        {error && (
+          <p className="text-sm text-red-600 dark:text-red-400">Analytics unavailable.</p>
+        )}
+        {totals && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Events</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{totals.totalEvents}</p>
+                  <p className="text-sm text-green-600 dark:text-green-400">{Math.round(totals.successRate * 100)}% success</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-blue-500" />
               </div>
-              <TrendingUp className="w-8 h-8 text-blue-500" />
+            </div>
+            <div className="card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Processing</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{totals.avgProcessingTimeMs} ms</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">mean</p>
+                </div>
+                <Zap className="w-8 h-8 text-yellow-500" />
+              </div>
+            </div>
+            <div className="card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Tokens</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{totals.avgTokens}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">per extraction</p>
+                </div>
+                <Activity className="w-8 h-8 text-green-500" />
+              </div>
+            </div>
+            <div className="card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Completed / Failed</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{totals.successCount} / {totals.failedCount}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Cached: {totals.cachedCount}</p>
+                </div>
+                <DollarSign className="w-8 h-8 text-purple-500" />
+              </div>
             </div>
           </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Accuracy</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {Math.round(stats.avgAccuracy * 100)}%
-                </p>
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  +2% from last week
-                </p>
-              </div>
-              <Activity className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Processing Time</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {stats.avgProcessingTime}s
-                </p>
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  -0.3s improvement
-                </p>
-              </div>
-              <Zap className="w-8 h-8 text-yellow-500" />
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  ${stats.totalCost}
-                </p>
-                <p className="text-sm text-blue-600 dark:text-blue-400">
-                  $0.037 per extraction
-                </p>
-              </div>
-              <DollarSign className="w-8 h-8 text-purple-500" />
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Charts Placeholder */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {catTop && (
           <div className="card p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Daily Extractions
-            </h3>
-            <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500 dark:text-gray-400">Chart coming soon...</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Categories</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                    <th className="py-2 pr-4 font-medium">Category</th>
+                    <th className="py-2 pr-4 font-medium">Count</th>
+                    <th className="py-2 pr-4 font-medium">Avg Proc (ms)</th>
+                    <th className="py-2 pr-4 font-medium">Avg Tokens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catTop.map(row => (
+                    <tr key={row.categoryCode} className="border-b border-gray-100 dark:border-gray-800">
+                      <td className="py-2 pr-4 font-mono">{row.categoryCode}</td>
+                      <td className="py-2 pr-4">{row.count}</td>
+                      <td className="py-2 pr-4">{row.avgProcessingMs}</td>
+                      <td className="py-2 pr-4">{row.avgTokens}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Category Breakdown
-            </h3>
-            <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500 dark:text-gray-400">Chart coming soon...</p>
-            </div>
-          </div>
-        </div>
+        )}
       </main>
     </div>
   )

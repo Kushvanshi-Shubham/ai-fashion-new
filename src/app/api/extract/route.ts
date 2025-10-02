@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit, RateLimitExceededError } from '@/lib/rate-limit'
-
-import { aiService } from '@/lib/ai/ai-services'
+import { prisma } from '@/lib/database'
+import { resolveModel } from '@/lib/ai/model-pricing'
 import { CategoryFormData } from '@/types/fashion'
 import { validateImage } from '@/lib/validation'
+import { addJob } from '@/lib/queue/job-manager'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -13,14 +14,13 @@ const MIN_DIMENSION = 50
 // Rate limiter for extractions - 10 requests per minute
 const extractionLimiter = rateLimit({
   interval: 60 * 1000,
-  maxRequests: 10,
-  blockDuration: 120 * 1000, // Block for 2 minutes if exceeded
+  maxRequests: 20, // Increased for async flow
+  blockDuration: 60 * 1000, // Block for 1 minute
   maxStoreSize: 1000
 })
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID()
-  const startTime = Date.now()
   let rateLimitInfo;
 
   try {
@@ -94,14 +94,11 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // The categories API returns a wrapped response { success, data, ... }
     const categoryPayload = await categoryResponse.json()
-    // Support both wrapped and raw CategoryFormData shapes
     const categoryData: CategoryFormData = (categoryPayload && typeof categoryPayload === 'object' && 'data' in categoryPayload)
       ? (categoryPayload.data as CategoryFormData)
       : (categoryPayload as CategoryFormData)
 
-    // Validate categoryData shape
     if (!categoryData || !Array.isArray(categoryData.fields) || categoryData.fields.length === 0) {
       return NextResponse.json({
         success: false,
@@ -112,72 +109,60 @@ export async function POST(request: NextRequest) {
       }, { status: 502 })
     }
 
-    // Process image with AI
-      const extractionResult = await aiService.extractAttributes(
-      imageValidation.optimizedBuffer!,
-      categoryData,
-      {
-        model: 'gpt-4-vision-preview',
-        maxTokens: 1500,
-        temperature: 0.1,
-        cacheEnabled: true,
-        cacheTTL: 3600 * 24
-      }
-    )
-    
-    const processingTime = Date.now() - startTime
-    const timestamp = new Date().toISOString()
+    // Create and queue the job
+    const selectedModel = resolveModel()
+    const job = addJob({
+      imageBuffer: imageValidation.optimizedBuffer!,
+      imageType: file.type,
+      category: categoryData,
+      model: selectedModel,
+    });
 
+    // Return a 202 Accepted response
     return NextResponse.json({
       success: true,
       data: {
-        requestId,
-        timestamp,
-        file: {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          optimizedSize: imageValidation.optimizedBuffer!.length
-        },
-        category: {
-          id: categoryId,
-          name: categoryData.categoryName,
-          department: categoryData.department,
-          subDepartment: categoryData.subDepartment,
-          totalAttributes: categoryData.totalAttributes,
-          enabledAttributes: categoryData.enabledAttributes
-        },
-        extraction: extractionResult,
-        performance: {
-          processingTime,
-          optimizationTime: imageValidation.metadata?.duration || 0
-        }
+        jobId: job.id,
+        status: job.status,
+        message: 'Extraction job has been queued.',
+        timestamp: new Date().toISOString(),
       },
-      rateLimit: {
+       rateLimit: {
         remaining: rateLimitInfo.remaining,
         reset: new Date(rateLimitInfo.reset).toISOString(),
         total: rateLimitInfo.total
       }
-    }, {
+    }, { 
+      status: 202,
       headers: {
+        'Location': `/api/extract/status/${job.id}`,
         'X-RateLimit-Remaining': rateLimitInfo.remaining.toString(),
         'X-RateLimit-Reset': new Date(rateLimitInfo.reset).toISOString(),
         'X-RateLimit-Total': rateLimitInfo.total.toString()
       }
-    })
+    });
     
   } catch (error) {
-    console.error('Extraction error:', error)
+    console.error('Extraction job creation error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const errorCode = error instanceof Error ? (error.name === 'RateLimitExceededError' ? 'RATE_LIMIT_EXCEEDED' : 'EXTRACTION_ERROR') : 'UNKNOWN_ERROR'
+    const errorCode = 'JOB_CREATION_FAILED'
     
-    const statusCode = errorCode === 'RATE_LIMIT_EXCEEDED' ? 429 : 500
-    const responseInit: ResponseInit = { status: statusCode }
-    if (error instanceof RateLimitExceededError) {
-      responseInit.headers = new Headers({
-        'Retry-After': Math.ceil(error.retryAfter / 1000).toString(),
-        'X-RateLimit-Reset': new Date(Date.now() + error.retryAfter).toISOString()
-      })
+    // Log failed attempt for analytics
+    if (process.env.DATABASE_URL) {
+      try {
+        await prisma.extractionEvent.create({
+          data: {
+            categoryCode: 'UNKNOWN',
+            status: 'FAILED',
+            fromCache: false,
+            errorCode,
+            errorMessage,
+            aiModel: 'gpt-4-vision-preview'
+          }
+        })
+      } catch (err) {
+        console.warn('[analytics] Failed to persist failed job creation event', err)
+      }
     }
 
     return NextResponse.json({
@@ -186,7 +171,7 @@ export async function POST(request: NextRequest) {
       code: errorCode,
       requestId,
       timestamp: new Date().toISOString()
-    }, responseInit)
+    }, { status: 500 })
   }
 }
 

@@ -3,13 +3,14 @@ import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { ExtractionResult, CategoryFormData, CompletedExtractionResult, FailedExtractionResult, isCompletedExtraction } from '@/types'
 
 interface UploadedImage {
-  id: string
-  file: File
-  preview: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  progress: number
-  error?: string | undefined
-  result?: ExtractionResult | undefined
+  id: string;
+  file: File;
+  preview: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  error?: string | undefined;
+  result?: ExtractionResult | undefined;
+  jobId?: string;
 }
 
 interface ExtractionStats {
@@ -85,6 +86,58 @@ const initialSettings: ExtractionSettings = {
   autoRetry: false,
   cacheEnabled: true
 }
+
+const pollForResult = async (
+  imageId: string,
+  jobId: string,
+  get: () => ExtractionState
+) => {
+  const maxRetries = 20; // 20 * 3s = 60s timeout
+  const interval = 3000; // 3 seconds
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(`/api/extract/status/${jobId}`);
+      const result = await response.json();
+
+      if (result.status === 'completed') {
+        const image = get().uploadedImages.find(img => img.id === imageId);
+        if (image) {
+            const extractionResult: CompletedExtractionResult = {
+                id: imageId,
+                fileName: image.file.name,
+                status: 'completed',
+                attributes: result.result.extraction.attributes,
+                confidence: result.result.extraction.confidence,
+                tokensUsed: result.result.tokensUsed,
+                processingTime: result.processingTime,
+                createdAt: result.createdAt,
+                fromCache: result.result.extraction.fromCache,
+            };
+            get().setImageResult(imageId, extractionResult);
+        }
+        return;
+      }
+
+      if (result.status === 'failed') {
+        get().updateImageStatus(imageId, 'failed', 0, result.error);
+        return;
+      }
+
+      // Still processing, update progress
+      const progress = 50 + (i / maxRetries) * 40; // Progress from 50% to 90%
+      get().updateImageStatus(imageId, 'processing', progress);
+
+      await new Promise(resolve => setTimeout(resolve, interval));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Polling failed';
+      get().updateImageStatus(imageId, 'failed', 0, message);
+      return;
+    }
+  }
+
+  get().updateImageStatus(imageId, 'failed', 0, 'Extraction timed out');
+};
 
 export const useExtractionStore = create<ExtractionState>()(
   devtools(
@@ -208,106 +261,86 @@ export const useExtractionStore = create<ExtractionState>()(
 
         // Set extraction result
         setImageResult: (id, result) => {
-          set({
-            results: [...get().results.filter(r => r.id !== id), result]
-          })
+          set((state) => ({
+            results: [...state.results.filter((r) => r.id !== id), result],
+            uploadedImages: state.uploadedImages.map(img =>
+              img.id === id ? { ...img, status: 'completed', progress: 100, result } : img
+            )
+          }));
           
-          get().updateImageStatus(id, 'completed', 100)
-          get().updateStats(result)
+          get().updateStats(result);
         },
 
         // Start single extraction
         startExtraction: async (imageId) => {
-          const { selectedCategory, uploadedImages } = get()
-          
+          const { selectedCategory, uploadedImages, settings } = get();
+
           if (!selectedCategory) {
-            set({ error: 'Please select a category first' })
-            return
+            set({ error: 'Please select a category first' });
+            return;
           }
-          
-          const image = imageId 
-            ? uploadedImages.find(img => img.id === imageId)
-            : uploadedImages.find(img => img.status === 'pending')
-          
+
+          const image = imageId
+            ? uploadedImages.find((img) => img.id === imageId)
+            : uploadedImages.find((img) => img.status === 'pending');
+
           if (!image) {
-            set({ error: 'No image found for extraction' })
-            return
+            set({ error: 'No image found for extraction' });
+            return;
           }
-          
-          set({ isProcessing: true, error: null })
-          get().updateImageStatus(image.id, 'processing', 10)
-          
+
+          set({ isProcessing: true, error: null });
+          get().updateImageStatus(image.id, 'processing', 10);
+
           try {
-            // Prepare form data
-            const formData = new FormData()
-            formData.append('file', image.file)
-            formData.append('categoryId', selectedCategory.categoryId)
-            formData.append('options', JSON.stringify({
-              cacheEnabled: get().settings.cacheEnabled
-            }))
-            
-            // Update progress
-            get().updateImageStatus(image.id, 'processing', 30)
-            
-            // Make API call
+            const formData = new FormData();
+            formData.append('file', image.file);
+            formData.append('categoryId', selectedCategory.categoryId);
+            formData.append(
+              'options',
+              JSON.stringify({
+                cacheEnabled: settings.cacheEnabled,
+                model: 'gpt-4o', // Or get from settings
+              })
+            );
+
+            get().updateImageStatus(image.id, 'processing', 30);
+
             const response = await fetch('/api/extract', {
               method: 'POST',
-              body: formData
-            })
-            
-            get().updateImageStatus(image.id, 'processing', 70)
-            
-            const result = await response.json()
+              body: formData,
+            });
 
-            if (!result.success) {
-              throw new Error(result.error || 'Extraction failed')
+            if (response.status !== 202) {
+              const errorResult = await response.json();
+              throw new Error(errorResult.error || 'Failed to start extraction job');
             }
 
-            // Guard the API response shape and only access completed-only fields when the API indicates completion.
-            const extraction = result.data?.extraction ?? {}
-            const performance = result.data?.performance ?? {}
-            const extractionStatus = extraction.status as string | undefined
+            const { jobId } = await response.json();
 
-            let extractionResult: ExtractionResult
+            // Store jobId with the image
+            set((state) => ({
+              uploadedImages: state.uploadedImages.map((img) =>
+                img.id === image.id ? { ...img, jobId } : img
+              ),
+            }));
 
-            if (extractionStatus === 'completed') {
-              extractionResult = {
-                id: extraction.id,
-                fileName: image.file.name,
-                status: 'completed',
-                attributes: extraction.attributes ?? {},
-                confidence: typeof extraction.confidence === 'number' ? extraction.confidence : 0,
-                tokensUsed: typeof performance.tokensUsed === 'number' ? performance.tokensUsed : 0,
-                processingTime: typeof performance.aiProcessingTime === 'number' ? performance.aiProcessingTime : (performance.processingTime ?? 0),
-                createdAt: result.data?.timestamp ?? new Date().toISOString(),
-                fromCache: !!extraction.fromCache
-              }
-            } else if (extractionStatus === 'failed') {
-              extractionResult = {
-                id: extraction.id ?? `${Date.now().toString(36)}`,
-                fileName: image.file.name,
-                status: 'failed',
-                error: extraction.error || 'Extraction failed',
-                createdAt: result.data?.timestamp ?? new Date().toISOString()
-              }
-            } else {
-              // pending / processing
-              extractionResult = {
-                id: extraction.id ?? `${Date.now().toString(36)}`,
-                fileName: image.file.name,
-                status: (extractionStatus as 'pending' | 'processing') ?? 'processing',
-                createdAt: result.data?.timestamp ?? new Date().toISOString()
-              }
-            }
+            get().updateImageStatus(image.id, 'processing', 50);
 
-            get().setImageResult(image.id, extractionResult)
-            
+            // Start polling for the result
+            await pollForResult(image.id, jobId, get);
+
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-            get().updateImageStatus(image.id, 'failed', 0, errorMessage)
-            set({ error: errorMessage })
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error';
+            get().updateImageStatus(image.id, 'failed', 0, errorMessage);
+            set({ error: errorMessage });
           } finally {
-            set({ isProcessing: false })
+            // isProcessing will be set to false by the batch processor
+            const anyProcessing = get().uploadedImages.some(img => img.status === 'processing');
+            if (!anyProcessing) {
+              set({ isProcessing: false });
+            }
           }
         },
 

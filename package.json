@@ -15,7 +15,10 @@
     "import:fashion": "tsx scripts/import-fashion-data.ts",
     "import:reset": "npx prisma db push --force-reset && npm run import:fashion",
     "import:fast": "tsx scripts/fast-import-fashion.ts",
-    "import:simple": "tsx scripts/simple-import.ts"
+    "import:simple": "tsx scripts/simple-import.ts",
+    "schema:audit": "tsx scripts/schema-audit.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -25,13 +28,13 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@tanstack/react-query": "^5.90.2",
     "@tanstack/react-query-devtools": "^5.90.2",
-  "@types/sharp": "^0.34.0",
+    "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.22",
     "ioredis": "^5.8.0",
     "lucide-react": "^0.544.0",
-  "multer": "^2.0.2",
+    "multer": "^2.0.2",
     "next": "15.5.4",
     "openai": "^6.0.1",
     "postcss": "^8.5.6",
@@ -43,6 +46,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "tsx": "^4.20.6",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.11",
     "zustand": "^5.0.8"
   },
@@ -52,9 +57,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^2.1.4",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4.1.14",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^5.1.1",
+    "vitest": "^2.1.4"
   }
 }

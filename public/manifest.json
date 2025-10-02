@@ -1,0 +1,16 @@
+{
+  "name": "AI Fashion Extractor",
+  "short_name": "FashionAI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "description": "Advanced AI-powered fashion attribute extraction system.",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

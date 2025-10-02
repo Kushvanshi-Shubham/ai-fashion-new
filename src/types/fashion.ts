@@ -1,4 +1,3 @@
-
 export interface CategoryFormData {
   categoryId: string
   categoryCode: string
@@ -72,6 +71,14 @@ export interface AttributeDetail {
   fieldLabel: string
   isValid: boolean
 }
+
+export type Extraction = {
+  attributes: Record<string, AttributeDetail>;
+  confidence: number;
+  tokensUsed: number;
+  model: string;
+  cost: number;
+};
 
 export interface DiscoveredAttribute {
   key: string

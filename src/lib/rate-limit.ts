@@ -32,6 +32,7 @@ class RateLimiter {
   private redis: Redis | null = null
   private inMemoryStore: Map<string, number[]> = new Map()
   private readonly maxStoreSize: number
+  private usingMemoryFallback = false
 
   constructor(private config: RateLimitConfig) {
     this.maxStoreSize = config.maxStoreSize || 10000
@@ -40,6 +41,7 @@ class RateLimiter {
     if (process.env.REDIS_DISABLED === 'true') {
       console.debug('Redis disabled via REDIS_DISABLED env')
       this.redis = null
+      this.usingMemoryFallback = true
       return
     }
 
@@ -53,13 +55,12 @@ class RateLimiter {
 
         // Attach handlers to gracefully handle connection failures and avoid unhandled exception events
         this.redis.on('error', (error) => {
-          console.warn('Redis error (rate-limit):', error)
-          try {
-            void this.redis?.quit()
-          } catch {
-            // ignore
+          // Downgrade to memory; avoid repeated noisy logs
+          if (!this.usingMemoryFallback) {
+            console.warn('Redis error (rate-limit) – switching to in-memory fallback:', error)
           }
-          // Nullify so the limiter uses in-memory fallback
+          this.usingMemoryFallback = true
+          try { void this.redis?.quit() } catch { /* ignore */ }
           this.redis = null
         })
 
@@ -73,6 +74,7 @@ class RateLimiter {
       } catch (err) {
         console.warn('Failed to initialize Redis for rate-limit, falling back to memory:', err)
         this.redis = null
+        this.usingMemoryFallback = true
       }
     }
   }
@@ -181,6 +183,14 @@ class RateLimiter {
     }
     this.inMemoryStore.clear()
   }
+
+  info(): { backend: 'redis' | 'memory', redisReady: boolean } {
+    return {
+      backend: this.redis?.status === 'ready' ? 'redis' : 'memory',
+      redisReady: this.redis?.status === 'ready' || false
+    }
+  }
 }
 
 export const rateLimit = (config: RateLimitConfig) => new RateLimiter(config)
+export type RateLimiterInstance = ReturnType<typeof rateLimit>

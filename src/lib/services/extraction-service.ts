@@ -1,4 +1,5 @@
 import { CategoryFormData, ExtractionResult, ExtractionResponse } from '@/types/fashion'
+import { normalizeExtraction } from '@/lib/extraction/transform'
 
 export class ExtractionService {
   static async extract(file: File, categoryId: string): Promise<ExtractionResult> {
@@ -12,12 +13,14 @@ export class ExtractionService {
         body: formData,
       })
 
-      if (!response.ok) {
-        throw new Error('Extraction failed')
-      }
-
       const result = await response.json()
-      return this.mapExtractionResponse(result)
+      if (!response.ok || !result?.success) {
+        // Attach guidance for common server failure scenarios
+        const code = result?.code || (response.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'EXTRACTION_FAILED')
+        const guidance = this.failureGuidance(code, result?.error)
+        throw new Error(guidance)
+      }
+  return this.mapExtractionResponse(result)
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Unknown error')
     }
@@ -32,82 +35,50 @@ export class ExtractionService {
   }
 
   private static mapExtractionResponse(response: ExtractionResponse): ExtractionResult {
-    const extraction = response?.extraction ?? {}
-    // Narrowed local type to read optional fields safely
-    type MaybeExtraction = {
-      id?: string
-      status?: string
-      attributes?: Record<string, unknown>
-      confidence?: number
-      fromCache?: boolean
-      error?: string
-    }
-    const ext = extraction as MaybeExtraction
-    const performance = response?.performance ?? {}
-    const status = (ext.status as string) ?? 'failed'
-
-    // Helper to coerce raw attribute records into the expected AttributeDetail map
-    const coerceAttributes = (raw: Record<string, unknown> | undefined): Record<string, import('@/types/fashion').AttributeDetail> => {
-      const out: Record<string, import('@/types/fashion').AttributeDetail> = {}
-      if (!raw || typeof raw !== 'object') return out
-      for (const [k, v] of Object.entries(raw)) {
-        if (v && typeof v === 'object') {
-          const maybe = v as Record<string, unknown>
-          const value = maybe.value ?? null
-          const strValue = value === null ? null : (typeof value === 'string' ? value : String(value))
-          const confidence = typeof maybe.confidence === 'number' ? Math.max(0, Math.min(100, maybe.confidence)) : 0
-          const reasoning = typeof maybe.reasoning === 'string' ? maybe.reasoning : ''
-          out[k] = {
-            fieldLabel: typeof maybe.fieldLabel === 'string' ? maybe.fieldLabel : k,
-            value: strValue,
-            confidence,
-            reasoning,
-            isValid: strValue !== null
-          }
-        } else {
-          const strValue = v === null ? null : (typeof v === 'string' ? v : String(v))
-          out[k] = {
-            fieldLabel: k,
-            value: strValue,
-            confidence: 0,
-            reasoning: '',
-            isValid: strValue !== null
-          }
-        }
+    type SafeExtraction = {
+      extraction?: {
+        id?: string
+        status?: string
+        attributes?: Record<string, unknown>
+        confidence?: number
+        fromCache?: boolean
+        error?: string
       }
-      return out
-    }
-
-    if (status === 'completed') {
-      return {
-        id: ext.id!,
-        fileName: response?.file?.name ?? 'unknown',
-        status: 'completed',
-        attributes: coerceAttributes(ext.attributes as Record<string, unknown> | undefined),
-        confidence: typeof ext.confidence === 'number' ? Math.round(Math.max(0, Math.min(100, ext.confidence))) : 0,
-        tokensUsed: typeof performance.tokensUsed === 'number' ? Math.max(0, Math.floor(performance.tokensUsed)) : 0,
-        processingTime: typeof performance.processingTime === 'number' ? Math.max(0, Math.floor(performance.processingTime)) : (typeof performance.aiProcessingTime === 'number' ? Math.max(0, Math.floor(performance.aiProcessingTime)) : 0),
-        createdAt: response?.timestamp ?? new Date().toISOString(),
-        fromCache: !!ext.fromCache
+      performance?: {
+        tokensUsed?: number
+        processingTime?: number
       }
+      file?: { name?: string }
+      timestamp?: string
     }
-
-    if (status === 'failed') {
-      return {
-        id: ext.id ?? `${Date.now().toString(36)}`,
-        fileName: response?.file?.name ?? 'unknown',
-        status: 'failed',
-        error: ext.error || 'Extraction failed',
-        createdAt: response?.timestamp ?? new Date().toISOString()
-      }
+    const r = response as unknown as SafeExtraction
+    const raw = {
+      id: r.extraction?.id,
+      status: r.extraction?.status,
+      attributes: r.extraction?.attributes,
+      confidence: r.extraction?.confidence,
+      tokensUsed: r.performance?.tokensUsed,
+      processingTime: r.performance?.processingTime,
+      createdAt: r.timestamp,
+      fromCache: r.extraction?.fromCache,
+      error: r.extraction?.error
     }
+    return normalizeExtraction(raw, response?.file?.name ?? 'unknown')
+  }
 
-    // fallback for pending/processing
-    return {
-      id: ext.id ?? `${Date.now().toString(36)}`,
-      fileName: response?.file?.name ?? 'unknown',
-      status: (status as 'pending' | 'processing') ?? 'processing',
-      createdAt: response?.timestamp ?? new Date().toISOString()
+  private static failureGuidance(code: string, message?: string): string {
+    const base = message || 'Extraction failed'
+    switch (code) {
+      case 'RATE_LIMIT_EXCEEDED':
+        return `${base}. You have hit the rate limit. Wait a minute and retry. Consider batching fewer images.`
+      case 'INVALID_IMAGE':
+        return `${base}. The image may be too large, unsupported type, or below minimum dimensions.`
+      case 'INVALID_CATEGORY_DATA':
+        return `${base}. Category definition is incomplete; refresh categories or pick a different one.`
+      case 'INVALID_CATEGORY':
+        return `${base}. Selected category no longer exists.`
+      default:
+        return `${base}. If this persists, check: OpenAI key, server logs (/api/health), and Redis availability.`
     }
   }
 }

@@ -88,22 +88,43 @@ export async function GET(this: unknown, request: NextRequest, context: { params
       }
 
       // Parse options if they exist
-      let options = null
+      let options: { shortForm: string; fullForm: string }[] | undefined = undefined
       if (attributeConfig.allowedValues && Array.isArray(attributeConfig.allowedValues)) {
-        // Limit options to prevent large payloads
-        options = attributeConfig.allowedValues.slice(0, 20)
+        // Limit options to prevent large payloads and convert to proper format
+        options = attributeConfig.allowedValues.slice(0, 20).map((value: unknown) => {
+          if (typeof value === 'string') {
+            return { shortForm: value, fullForm: value }
+          }
+          if (value && typeof value === 'object' && 'shortForm' in value && 'fullForm' in value) {
+            return { shortForm: String(value.shortForm), fullForm: String(value.fullForm) }
+          }
+          // Fallback for malformed data
+          const stringValue = String(value)
+          return { shortForm: stringValue, fullForm: stringValue }
+        })
+      }
+
+      // Map attribute type to valid field types
+      let fieldType: 'select' | 'text' | 'number' | 'boolean' = 'text'
+      const attrType = attributeConfig.type?.toLowerCase()
+      if (attrType === 'select' || (options && options.length > 0)) {
+        fieldType = 'select'
+      } else if (attrType === 'number' || attrType === 'numeric') {
+        fieldType = 'number'
+      } else if (attrType === 'boolean' || attrType === 'bool') {
+        fieldType = 'boolean'
       }
 
       const field = {
         key: attributeKey,
         label: attributeConfig.label,
-        type: attributeConfig.type?.toLowerCase() || 'text',
+        type: fieldType,
         required: false, // Could be enhanced based on category rules
-        options,
-        description: attributeConfig.description,
+        ...(options && { options }),
+        ...(attributeConfig.description && { description: attributeConfig.description }),
         aiExtractable: true,
         aiWeight: 1.0
-      }
+      } as const
 
       fields.push(field)
       enabledCount++
@@ -126,9 +147,9 @@ export async function GET(this: unknown, request: NextRequest, context: { params
       description: category.description || `${category.department} ${category.subDepartment} category`,
       totalAttributes: Object.keys(category.attributes).length,
       enabledAttributes: enabledCount,
-      isActive: false,
-      extractableAttributes: 0,
-      fields: []
+      isActive: category.isActive !== false,
+      extractableAttributes: aiExtractableCount,
+      fields: fields
     }
 
     // Cache the result
