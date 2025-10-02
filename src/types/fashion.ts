@@ -29,18 +29,41 @@ export interface AttributeOption {
   fullForm: string
 }
 
-export interface ExtractionResult {
+export type ExtractionStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export interface BaseExtractionResult {
   id: string
   fileName: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
+  createdAt: string
+  fromCache?: boolean
+}
+
+export interface PendingExtractionResult extends BaseExtractionResult {
+  status: 'pending'
+}
+
+export interface ProcessingExtractionResult extends BaseExtractionResult {
+  status: 'processing'
+}
+
+export interface CompletedExtractionResult extends BaseExtractionResult {
+  status: 'completed'
   attributes: Record<string, AttributeDetail>
   confidence: number
   tokensUsed: number
   processingTime: number
-  createdAt: string
-  error?: string
-  fromCache?: boolean
 }
+
+export interface FailedExtractionResult extends BaseExtractionResult {
+  status: 'failed'
+  error: string
+}
+
+export type ExtractionResult = 
+  | PendingExtractionResult 
+  | ProcessingExtractionResult 
+  | CompletedExtractionResult 
+  | FailedExtractionResult
 
 export interface AttributeDetail {
   value: string | null

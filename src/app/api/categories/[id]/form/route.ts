@@ -1,14 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CategoryFormData } from '@/types/fashion'
 
+
+import { Category } from '@/types'
+import { rateLimit } from '@/lib/rate-limit'
+
+interface CacheEntry {
+  data: Category
+  expiry: number
+}
+
 // Cache for category data
-const categoryCache = new Map<string, { data: any, expiry: number }>()
+const categoryCache = new Map<string, CacheEntry>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+// Rate limiting configuration
+const limiter = rateLimit({
+  interval: 60 * 1000, // 1 minute
+  uniqueTokenPerInterval: 500
+})
 
 export async function GET(this: any, 
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  try {
+    // Apply rate limiting
+    await limiter.check(request, 60, 'CATEGORY_API') // 60 requests per minute
+  } catch {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
+  // Validate category ID
+  const categoryId = params.id
+  if (!categoryId.match(/^[a-zA-Z0-9_-]+$/)) {
+    return NextResponse.json({ error: 'Invalid category ID format' }, { status: 400 })
+  }
   const startTime = Date.now()
   const categoryId = params.id
 

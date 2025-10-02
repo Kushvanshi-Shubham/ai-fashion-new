@@ -275,8 +275,28 @@ Analyze the image now:`
     return totalConfidence / results.length
   }
   
+  private static estimateTokensNeeded(imageSize: number, attributeCount: number): number {
+    // Base token allocation for system context
+    const baseTokens = 100
+    
+    // Tokens for image analysis (scaled by image size)
+    const imageTokens = Math.ceil(imageSize / 1024) * 10
+    
+    // Tokens per attribute (including context and response)
+    const tokensPerAttribute = 50
+    
+    return baseTokens + imageTokens + (attributeCount * tokensPerAttribute)
+  }
+
   private static calculateCost(tokens: number): number {
     // GPT-4 Vision pricing (approximate)
-    return tokens * 0.00003 // $0.03 per 1K tokens
+    const inputRate = 0.01 // $0.01 per 1K tokens
+    const outputRate = 0.03 // $0.03 per 1K tokens
+    
+    // Estimate 70% input, 30% output split
+    const inputTokens = Math.round(tokens * 0.7)
+    const outputTokens = Math.round(tokens * 0.3)
+    
+    return (inputTokens * inputRate + outputTokens * outputRate) / 1000
   }
 }

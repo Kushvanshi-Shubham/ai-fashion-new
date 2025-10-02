@@ -22,6 +22,13 @@ interface ExtractionStats {
   processingTime: number
 }
 
+interface ExtractionSettings {
+  batchProcessing: boolean
+  maxConcurrentProcessing: number
+  autoRetry: boolean
+  cacheEnabled: boolean
+}
+
 interface ExtractionState {
   // Core state
   selectedCategory: CategoryFormData | null
@@ -37,12 +44,11 @@ interface ExtractionState {
   stats: ExtractionStats
   
   // Settings
-  settings: {
-    batchProcessing: boolean
-    maxConcurrentProcessing: number
-    autoRetry: boolean
-    cacheEnabled: boolean
-  }
+  settings: ExtractionSettings
+
+  // Type guards for result states
+  isCompleted: (result: ExtractionResult) => result is CompletedExtractionResult
+  isFailed: (result: ExtractionResult) => result is FailedExtractionResult
   
   // Actions
   setCategory: (category: CategoryFormData | null) => void
@@ -90,6 +96,14 @@ export const useExtractionStore = create<ExtractionState>()(
         results: [],
         isProcessing: false,
         currentProgress: 0,
+        
+        // Add memoization
+        getFilteredResults: (filter: string) => {
+          const results = get().results
+          return useMemo(() => {
+            return results.filter(r => r.status === filter)
+          }, [results, filter])
+        },
         error: null,
         stats: initialStats,
         settings: initialSettings,
@@ -367,42 +381,53 @@ export const useExtractionStore = create<ExtractionState>()(
   )
 )
 
-// Selectors for optimized re-renders
-export const useExtractionSelectors = {
-  // Basic selectors
-  selectedCategory: () => useExtractionStore(state => state.selectedCategory),
-  uploadedImages: () => useExtractionStore(state => state.uploadedImages),
-  results: () => useExtractionStore(state => state.results),
-  isProcessing: () => useExtractionStore(state => state.isProcessing),
-  error: () => useExtractionStore(state => state.error),
+// Custom hook for extraction selectors
+export const useExtractionSelectors = () => {
+  const store = useExtractionStore()
   
-  // Computed selectors
-  pendingImages: () => useExtractionStore(state => 
-    state.uploadedImages.filter(img => img.status === 'pending')
-  ),
-  
-  processingImages: () => useExtractionStore(state => 
-    state.uploadedImages.filter(img => img.status === 'processing')
-  ),
-  
-  completedImages: () => useExtractionStore(state => 
-    state.uploadedImages.filter(img => img.status === 'completed')
-  ),
-  
-  failedImages: () => useExtractionStore(state => 
-    state.uploadedImages.filter(img => img.status === 'failed')
-  ),
-  
-  // Stats selectors
-  successRate: () => useExtractionStore(state => {
-    const total = state.stats.totalExtractions
-    return total > 0 ? (state.stats.successfulExtractions / total) * 100 : 0
-  }),
-  
-  averageProcessingTime: () => useExtractionStore(state => {
-    const total = state.stats.totalExtractions
-    return total > 0 ? state.stats.processingTime / total : 0
-  })
+  return {
+    // Basic selectors
+    selectedCategory: store.selectedCategory,
+    uploadedImages: store.uploadedImages,
+    results: store.results,
+    isProcessing: store.isProcessing,
+    error: store.error,
+    
+    // Computed selectors
+    pendingImages: store.uploadedImages.filter(
+      (img): img is UploadedImage & { status: 'pending' } => 
+      img.status === 'pending'
+    ),
+    
+    processingImages: store.uploadedImages.filter(
+      (img): img is UploadedImage & { status: 'processing' } => 
+      img.status === 'processing'
+    ),
+    
+    completedImages: store.uploadedImages.filter(
+      (img): img is UploadedImage & { status: 'completed' } => 
+      img.status === 'completed'
+    ),
+    
+    failedImages: store.uploadedImages.filter(
+      (img): img is UploadedImage & { status: 'failed' } => 
+      img.status === 'failed'
+    ),
+    
+    // Stats selectors
+    stats: {
+      successRate: (() => {
+        const total = store.stats.totalExtractions
+        return total > 0 ? (store.stats.successfulExtractions / total) * 100 : 0
+      })(),
+      
+      averageProcessingTime: (() => {
+        const total = store.stats.totalExtractions
+        return total > 0 ? store.stats.processingTime / total : 0
+      })()
+    }
+  }
+}
 }
 
 // Cleanup on page unload

@@ -7,22 +7,39 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000,   // instead of cacheTime
+      gcTime: 10 * 60 * 1000,   // Data retention time
       retry: (failureCount, error) => {
-        // Narrow error type before checking status
-        if (typeof error === 'object' && error !== null && 'status' in error) {
-          const status = (error as { status?: number }).status
-          if (status && status >= 400 && status < 500) {
+        if (error instanceof Error) {
+          // Don't retry client errors
+          if ('status' in error && error.status >= 400 && error.status < 500) {
+            return false
+          }
+          // Don't retry rate limit errors
+          if (error.message.includes('Too many requests')) {
             return false
           }
         }
-        return failureCount < 3
+        return failureCount < 2
       },
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      refetchOnMount: 'always',
+      refetchInterval: (data) => {
+        // Refetch frequency based on data type
+        if (data?.type === 'analytics') return 5 * 60 * 1000 // 5 minutes
+        if (data?.type === 'extraction') return false // Don't auto-refetch
+        return false
+      }
     },
     mutations: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (error instanceof Error && error.message.includes('Too many requests')) {
+          return false
+        }
+        return failureCount < 2
+      },
+      onError: (error) => {
+        console.error('Mutation error:', error)
+      }
     },
   },
 })

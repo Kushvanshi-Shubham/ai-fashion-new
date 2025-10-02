@@ -2,17 +2,17 @@
 
 import Link from 'next/link'
 import { ArrowLeft, TrendingUp, Activity, Zap, DollarSign } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
 export default function AnalyticsPage() {
-  // Mock data for demo
-  const stats = {
-    totalExtractions: 1247,
-    avgAccuracy: 0.91,
-    avgProcessingTime: 2.4,
-    totalCost: 45.67,
-    todayExtractions: 23,
-    successRate: 0.98
-  }
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['analytics-stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/analytics/stats')
+      if (!response.ok) throw new Error('Failed to fetch analytics')
+      return response.json()
+    }
+  })
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

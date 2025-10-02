@@ -241,16 +241,56 @@ export async function GET() {
 }
 
 // Helper function to calculate API cost
+interface BatchExtractionResult {
+  id: string
+  success: boolean
+  result?: ExtractionResult
+  error?: string
+}
+
+// Batch size for concurrent processing
+const BATCH_SIZE = 3
+
+async function processBatch(images: File[], categoryId: string): Promise<BatchExtractionResult[]> {
+  const results: BatchExtractionResult[] = []
+  
+  // Process images in parallel within batch size limit
+  for (let i = 0; i < images.length; i += BATCH_SIZE) {
+    const batch = images.slice(i, i + BATCH_SIZE)
+    const batchPromises = batch.map(async (image) => {
+      try {
+        const result = await aiService.extractAttributes(image, categoryId)
+        return {
+          id: crypto.randomUUID(),
+          success: true,
+          result
+        }
+      } catch (error) {
+        return {
+          id: crypto.randomUUID(),
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      }
+    })
+    
+    const batchResults = await Promise.all(batchPromises)
+    results.push(...batchResults)
+  }
+  
+  return results
+}
+
 function calculateCost(tokens: number): number {
-  // GPT-4o-mini pricing (as of 2024)
-  const inputRate = 0.15 / 1000000  // $0.15 per 1M input tokens
-  const outputRate = 0.60 / 1000000 // $0.60 per 1M output tokens
+  // GPT-4 Vision optimized pricing
+  const inputRate = 0.01  // $0.01 per 1K input tokens
+  const outputRate = 0.03 // $0.03 per 1K output tokens
   
-  // Approximate 80% input, 20% output split
-  const inputTokens = Math.round(tokens * 0.8)
-  const outputTokens = Math.round(tokens * 0.2)
+  // Dynamic token split based on response size
+  const inputTokens = Math.round(tokens * 0.7)
+  const outputTokens = Math.round(tokens * 0.3)
   
-  return (inputTokens * inputRate) + (outputTokens * outputRate)
+  return (inputTokens * inputRate + outputTokens * outputRate) / 1000
 }
 
 // Helper function to calculate confidence distribution
