@@ -94,7 +94,23 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    const categoryData: CategoryFormData = await categoryResponse.json()
+    // The categories API returns a wrapped response { success, data, ... }
+    const categoryPayload = await categoryResponse.json()
+    // Support both wrapped and raw CategoryFormData shapes
+    const categoryData: CategoryFormData = (categoryPayload && typeof categoryPayload === 'object' && 'data' in categoryPayload)
+      ? (categoryPayload.data as CategoryFormData)
+      : (categoryPayload as CategoryFormData)
+
+    // Validate categoryData shape
+    if (!categoryData || !Array.isArray(categoryData.fields) || categoryData.fields.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid category data received from categories service',
+        code: 'INVALID_CATEGORY_DATA',
+        requestId,
+        timestamp: new Date().toISOString()
+      }, { status: 502 })
+    }
 
     // Process image with AI
       const extractionResult = await aiService.extractAttributes(

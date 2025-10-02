@@ -32,11 +32,42 @@ try {
   })
   
   // Optional Redis for caching
-  if (process.env.REDIS_URL) {
+  if (process.env.REDIS_DISABLED === 'true') {
+    console.debug('Redis disabled via REDIS_DISABLED env (ai-service)')
+  } else if (process.env.REDIS_URL) {
     // ioredis v5 constructor supports a single URL string
-    redis = new Redis(process.env.REDIS_URL)
-    // configure retries carefully
-    redis.options = { ...(redis.options || {}), maxRetriesPerRequest: 3 }
+    try {
+      redis = new Redis(process.env.REDIS_URL)
+      // configure retries carefully
+      redis.options = { ...(redis.options || {}), maxRetriesPerRequest: 3 }
+
+      // Attach error handler to prevent unhandled exception events
+      redis.on('error', (err) => {
+        // Log warning and disable redis usage by setting to null
+        console.warn('Redis error:', err)
+        try {
+          // Attempt graceful disconnect
+          void redis?.quit()
+        } catch {
+          // ignore
+        }
+        // Nullify so rest of code falls back to in-memory caches
+        // Note: we intentionally don't throw here to avoid process crash
+        // during transient Redis outages in development.
+        redis = null
+      })
+
+      redis.on('connect', () => {
+        console.debug('Redis connecting...')
+      })
+
+      redis.on('ready', () => {
+        console.debug('Redis ready')
+      })
+    } catch (err) {
+      console.warn('Failed to initialize Redis client, continuing without cache:', err)
+      redis = null
+    }
   }
 } catch (error) {
   console.error('Failed to initialize AI service:', error)
@@ -426,7 +457,7 @@ Respond with clean JSON only:`
    */
   private static async cacheResult(key: string, result: ExtractionResult, ttl: number): Promise<void> {
     try {
-      if (redis && await redis.ping() === 'PONG') {
+      if (redis && redis.status === 'ready') {
         await redis.setex(key, ttl, JSON.stringify(result))
       } else {
         // Fallback to memory cache
@@ -447,7 +478,7 @@ Respond with clean JSON only:`
    */
   private static async getCachedResult(key: string): Promise<ExtractionResult | null> {
     try {
-      if (redis && await redis.ping() === 'PONG') {
+      if (redis && redis.status === 'ready') {
         const cached = await redis.get(key)
         return cached ? JSON.parse(cached) : null
       } else {
@@ -576,9 +607,9 @@ Respond with clean JSON only:`
       }
 
       // Check Redis
-      if (redis && await redis.ping() === 'PONG') {
-        checks.redis = true
-      }
+      if (redis && redis.status === 'ready') {
+          checks.redis = true
+        }
 
       // Check memory
       const memUsage = process.memoryUsage()

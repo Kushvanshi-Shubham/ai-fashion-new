@@ -36,16 +36,44 @@ class RateLimiter {
   constructor(private config: RateLimitConfig) {
     this.maxStoreSize = config.maxStoreSize || 10000
 
-    if (process.env.REDIS_URL) {
-      this.redis = new Redis(process.env.REDIS_URL, {
-        retryStrategy: (times) => Math.min(times * 50, 2000),
-        maxRetriesPerRequest: 3,
-        enableOfflineQueue: true
-      })
+    // Allow disabling Redis in development via environment
+    if (process.env.REDIS_DISABLED === 'true') {
+      console.debug('Redis disabled via REDIS_DISABLED env')
+      this.redis = null
+      return
+    }
 
-      this.redis.on('error', (error) => {
-        console.error('Redis error:', error)
-      })
+    if (process.env.REDIS_URL) {
+      try {
+        this.redis = new Redis(process.env.REDIS_URL, {
+          retryStrategy: (times) => Math.min(times * 50, 2000),
+          maxRetriesPerRequest: 3,
+          enableOfflineQueue: true
+        })
+
+        // Attach handlers to gracefully handle connection failures and avoid unhandled exception events
+        this.redis.on('error', (error) => {
+          console.warn('Redis error (rate-limit):', error)
+          try {
+            void this.redis?.quit()
+          } catch {
+            // ignore
+          }
+          // Nullify so the limiter uses in-memory fallback
+          this.redis = null
+        })
+
+        this.redis.on('connect', () => {
+          console.debug('Redis (rate-limit) connecting...')
+        })
+
+        this.redis.on('ready', () => {
+          console.debug('Redis (rate-limit) ready')
+        })
+      } catch (err) {
+        console.warn('Failed to initialize Redis for rate-limit, falling back to memory:', err)
+        this.redis = null
+      }
     }
   }
 
