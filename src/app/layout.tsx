@@ -2,6 +2,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Providers } from './providers'
+import { ThemeProvider } from '@/contexts/ThemeContext'
+import Header from '@/components/Header'
 import './globals.css'
 
 const inter = Inter({ 
@@ -98,14 +100,19 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://api.openai.com" />
       </head>
       <body 
-        className="min-h-screen bg-white antialiased" 
+        className="min-h-screen antialiased" 
         suppressHydrationWarning
       >
-        <Providers>
-          <div className="flex min-h-screen flex-col">
-            <div className="flex-1">{children}</div>
-          </div>
-        </Providers>
+        <ThemeProvider>
+          <Providers>
+            <div className="flex min-h-screen flex-col">
+              <Header />
+              <main className="flex-1 animate-fade-in">
+                {children}
+              </main>
+            </div>
+          </Providers>
+        </ThemeProvider>
         
         {/* Service Worker Registration */}
         <script

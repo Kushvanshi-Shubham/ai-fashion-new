@@ -1,304 +1,301 @@
-
 'use client'
 
 import React from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { 
-  Sparkles, 
-  Zap, 
-  Shield, 
-  BarChart3, 
-  Upload, 
-  Brain, 
-  Clock,
-  ArrowRight,
-  Tags,
-  Database
-} from 'lucide-react'
+import { ArrowRight, Sparkles, Tags, Brain, Zap, Database, BarChart3, Shield, Upload, Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { StatCard } from '@/components/ui/stat-card'
+import { FeatureCard } from '@/components/ui/feature-card'
+import { StepCard } from '@/components/ui/step-card'
+import { Container } from '@/components/ui/container'
+import { PageSection } from '@/components/ui/page-section'
 
 export default function HomePage() {
   const features = [
     {
-      icon: <Tags className="w-6 h-6" />,
+      icon: Tags,
       title: "Category-Driven Extraction",
       description: "Select Department → Sub-department → Category to define exactly which attributes to extract",
-      color: "from-blue-500 to-cyan-500"
+      gradient: "from-blue-500/20 to-indigo-600/20"
     },
     {
-      icon: <Brain className="w-6 h-6" />,
+      icon: Brain,
       title: "AI-Powered Analysis", 
       description: "GPT-4 Vision analyzes images and extracts only relevant attributes for your selected category",
-      color: "from-purple-500 to-pink-500"
+      gradient: "from-purple-500/20 to-pink-600/20"
     },
     {
-      icon: <Zap className="w-6 h-6" />,
+      icon: Zap,
       title: "Fast & Accurate",
       description: "Get precise fashion attribute extraction in seconds with industry-leading accuracy",
-      color: "from-orange-500 to-red-500"
+      gradient: "from-amber-500/20 to-orange-600/20"
     },
     {
-      icon: <Database className="w-6 h-6" />,
-      title: "Rich Data Tables",
-      description: "Export results to Excel, CSV, or JSON with comprehensive data management features", 
-      color: "from-green-500 to-emerald-500"
+      icon: Database,
+      title: "Rich Data Export",
+      description: "Export results to Excel, CSV, or JSON with comprehensive data management features",
+      gradient: "from-emerald-500/20 to-teal-600/20"
     }
   ]
 
   const stats = [
-    { label: "Categories", value: "283", description: "Across all departments" },
-    { label: "Attributes", value: "80+", description: "Detailed fashion properties" },
-    { label: "Accuracy", value: "95%+", description: "AI extraction precision" },
-    { label: "Speed", value: "3s", description: "Average processing time" }
+    { label: "Categories", value: "283", description: "Across all departments", icon: Tags },
+    { label: "Attributes", value: "80+", description: "Fashion properties", icon: BarChart3 },
+    { label: "Accuracy", value: "95%+", description: "AI precision", icon: Brain },
+    { label: "Speed", value: "3s", description: "Processing time", icon: Zap }
+  ]
+
+  const workflow = [
+    { step: 1, title: "Select Category", description: "Choose Department → Sub-department → Category", icon: Tags },
+    { step: 2, title: "Review Attributes", description: "Preview extraction attributes", icon: BarChart3 },
+    { step: 3, title: "Upload Images", description: "Add fashion images", icon: Upload },
+    { step: 4, title: "Get Results", description: "Export detailed results", icon: Shield }
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm shadow-sm border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Brain className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">AI Fashion Extractor</h1>
-                <p className="text-sm text-gray-500">v2.0 - Category-Driven Analysis</p>
-              </div>
-            </div>
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <PageSection className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 text-center overflow-hidden" bleed>
+        <Container>
+          {/* Hero Badge */}
+          <motion.div 
+            className="inline-flex items-center gap-2 mb-8 justify-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Badge variant="soft" className="px-4 py-2 text-sm shadow-soft">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Powered by GPT-4 Vision
+            </Badge>
+          </motion.div>
 
-            <nav className="flex items-center space-x-4">
-              <Link
-                href="/admin"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Admin
-              </Link>
-              <Link
-                href="/analytics" 
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Analytics
-              </Link>
-              <Link
-                href="/rich-tables"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Rich Tables
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Hero Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center py-16"
-        >
-          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium mb-6">
-            <Sparkles className="w-4 h-4" />
-            <span>Powered by GPT-4 Vision</span>
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            AI-Powered Fashion 
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              {' '}Analysis
+          {/* Hero Title */}
+          <motion.h1 
+            className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-8 text-balance"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          >
+            Professional Fashion
+            <br />
+            <span className="text-gradient bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+              AI Analysis
             </span>
-          </h1>
-          
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-12">
-            Revolutionary category-driven extraction system. Select your fashion category, 
-            upload images, and get precise AI analysis of only the attributes that matter.
-          </p>
+          </motion.h1>
+
+          {/* Hero Description */}
+          <motion.p 
+            className="text-xl text-muted-foreground max-w-3xl mx-auto mb-12 text-pretty leading-relaxed"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            Extract precise fashion attributes using category-driven AI. Professional-grade analysis for fashion retailers and brands with industry-leading accuracy.
+          </motion.p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
+          <motion.div 
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-20"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          >
             <Link href="/category-workflow">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <Upload className="w-5 h-5" />
-                <span>Start Category Workflow</span>
-                <ArrowRight className="w-5 h-5" />
-              </motion.button>
+              <Button size="lg" variant="premium" className="w-full sm:w-auto group">
+                <Upload className="w-5 h-5 mr-2" />
+                Start Analysis
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
             </Link>
-            
             <Link href="/rich-tables">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-full sm:w-auto bg-white text-gray-700 border-2 border-gray-300 px-8 py-4 rounded-lg font-semibold text-lg hover:border-gray-400 transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <BarChart3 className="w-5 h-5" />
-                <span>View Rich Tables</span>
-              </motion.button>
+              <Button variant="outline" size="lg" className="w-full sm:w-auto group">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                View Data Tables
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform opacity-60" />
+              </Button>
             </Link>
-          </div>
+          </motion.div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
-            {stats.map((stat, index) => (
+          {/* Stats Grid */}
+          <motion.div 
+            className="grid grid-cols-2 lg:grid-cols-4 gap-6 max-w-4xl mx-auto"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="text-center"
+                transition={{ duration: 0.6, delay: 0.6 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
               >
-                <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
-                <div className="text-sm font-medium text-gray-600 mb-1">{stat.label}</div>
-                <div className="text-xs text-gray-500">{stat.description}</div>
+                <StatCard 
+                  label={stat.label} 
+                  value={stat.value} 
+                  description={stat.description} 
+                  icon={<stat.icon className="w-5 h-5" />}
+                  index={i} 
+                />
               </motion.div>
             ))}
-          </div>
-        </motion.div>
+          </motion.div>
+        </Container>
 
-        {/* Features Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="pb-16"
-        >
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Revolutionary Category-Driven Approach
+        {/* Background Decoration */}
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        </div>
+      </PageSection>
+
+      {/* Features Section */}
+      <PageSection className="relative overflow-hidden" subdued borderTop>
+        <Container>
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Badge variant="soft" className="mb-4">
+              <Brain className="w-4 h-4 mr-2" />
+              Smart Analysis
+            </Badge>
+            <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-balance">
+              Category-Driven Analysis
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Unlike traditional tools that extract everything, our system only analyzes 
-              attributes relevant to your selected fashion category.
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto text-pretty leading-relaxed">
+              Unlike traditional tools that extract everything, our system analyzes only the attributes relevant to your selected fashion category with precision and speed.
             </p>
-          </div>
+          </motion.div>
 
           <div className="grid md:grid-cols-2 gap-8">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 + index * 0.1 }}
-                className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-all duration-200"
-              >
-                <div className="flex items-start space-x-4">
-                  <div className={`w-12 h-12 bg-gradient-to-br ${feature.color} rounded-lg flex items-center justify-center text-white`}>
-                    {feature.icon}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {feature.title}
-                    </h3>
-                    <p className="text-gray-600">
-                      {feature.description}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Workflow Preview */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="pb-16"
-        >
-          <div className="bg-white rounded-2xl shadow-sm border p-8">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                Simple 4-Step Workflow
-              </h2>
-              <p className="text-lg text-gray-600">
-                Get started with category-driven AI extraction in just a few clicks
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-4 gap-6">
-              {[
-                { 
-                  step: 1, 
-                  title: "Select Category", 
-                  description: "Choose Department → Sub-department → Major Category",
-                  icon: <Tags className="w-6 h-6" />
-                },
-                { 
-                  step: 2, 
-                  title: "Review Attributes", 
-                  description: "Preview which attributes will be extracted",
-                  icon: <BarChart3 className="w-6 h-6" />
-                },
-                { 
-                  step: 3, 
-                  title: "Upload Images", 
-                  description: "Add fashion images for AI analysis",
-                  icon: <Upload className="w-6 h-6" />
-                },
-                { 
-                  step: 4, 
-                  title: "Get Results", 
-                  description: "View and export detailed extraction results",
-                  icon: <Shield className="w-6 h-6" />
-                }
-              ].map((item) => (
-                <div key={item.step} className="text-center">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white mx-auto mb-4">
-                    {item.icon}
-                  </div>
-                  <div className="text-sm font-semibold text-blue-600 mb-2">
-                    Step {item.step}
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {item.title}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    {item.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="text-center mt-8">
-              <Link href="/category-workflow">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2 mx-auto"
+            {features.map((feature, i) => {
+              const Icon = feature.icon
+              return (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <Clock className="w-5 h-5" />
-                  <span>Try Category Workflow</span>
-                  <ArrowRight className="w-5 h-5" />
-                </motion.button>
-              </Link>
-            </div>
+                  <FeatureCard
+                    icon={<Icon className="w-6 h-6" />}
+                    title={feature.title}
+                    description={feature.description}
+                    gradient={feature.gradient}
+                    index={i}
+                  />
+                </motion.div>
+              )
+            })}
           </div>
-        </motion.div>
-      </main>
+        </Container>
+
+        {/* Background Decoration */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-primary/3 rounded-full blur-3xl -z-10" />
+      </PageSection>
+
+      {/* Workflow Section */}
+      <PageSection className="relative">
+        <Container>
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Badge variant="premium" className="mb-4">
+              <Zap className="w-4 h-4 mr-2" />
+              Lightning Fast
+            </Badge>
+            <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-balance">
+              Simple 4-Step Process
+            </h2>
+            <p className="text-xl text-muted-foreground text-pretty">
+              Get professional fashion analysis in minutes with our streamlined workflow
+            </p>
+          </motion.div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+            {workflow.map((item, i) => {
+              const Icon = item.icon
+              return (
+                <motion.div
+                  key={item.step}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <StepCard
+                    step={item.step}
+                    title={item.title}
+                    description={item.description}
+                    icon={<Icon className="w-5 h-5" />}
+                  />
+                </motion.div>
+              )
+            })}
+          </div>
+
+          <motion.div 
+            className="text-center"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Link href="/category-workflow">
+              <Button size="lg" variant="premium" className="group">
+                <Clock className="w-5 h-5 mr-2" />
+                Get Started Now
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+          </motion.div>
+        </Container>
+
+        {/* Background Decoration */}
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl -z-10" />
+      </PageSection>
 
       {/* Footer */}
-      <footer className="mt-16 bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              © 2024 AI Fashion Extractor. Powered by advanced AI technology.
+      <footer className="border-t border-border/50 bg-muted/20 backdrop-blur-sm">
+        <Container>
+          <motion.div 
+            className="flex flex-col sm:flex-row items-center justify-between gap-6 py-12"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">Fashion AI</div>
+                <div className="text-xs text-muted-foreground">© 2025 Advanced AI-powered analysis</div>
+              </div>
             </div>
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>v2.0</span>
-              <span>•</span>
-              <span>GPT-4 Vision</span>
-              <span>•</span>
-              <span>283 Categories</span>
+            <div className="flex items-center gap-6">
+              <Badge variant="premium" className="text-xs">
+                <Sparkles className="w-3 h-3 mr-1" />
+                v2.0
+              </Badge>
+              <Badge variant="outline" className="text-xs">GPT-4 Vision</Badge>
+              <Badge variant="soft" className="text-xs">283 Categories</Badge>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </Container>
       </footer>
     </div>
   )

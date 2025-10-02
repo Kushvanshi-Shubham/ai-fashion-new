@@ -224,7 +224,7 @@ Analyze the image now and respond with clean JSON:`;
     confidence: number;
     errors: string[];
   }> {
-    const errors: string[] = [];
+    const validationErrors: string[] = [];
     const attributes: Record<string, string | null> = {};
     let totalScore = 0;
     let validFields = 0;
@@ -270,7 +270,7 @@ Analyze the image now and respond with clean JSON:`;
                   ).toFixed(0)}%)`
                 );
               } else {
-                errors.push(
+                validationErrors.push(
                   `Invalid "${field.label}": "${aiValue}" not in options`
                 );
                 fieldScore = 0;
@@ -295,7 +295,7 @@ Analyze the image now and respond with clean JSON:`;
       return {
         attributes,
         confidence: Math.min(overallConfidence, 1.0),
-        errors,
+        errors: validationErrors,
       };
     } catch (parseError: unknown) {
       console.error("Failed to parse AI response:", parseError);
@@ -430,7 +430,6 @@ Analyze the image now:`;
     errors: string[];
     discoveries?: DiscoveredAttribute[] | undefined;
   }> {
-    const errors: string[] = [];
     let discoveries: DiscoveredAttribute[] = [];
 
     try {

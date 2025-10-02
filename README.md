@@ -205,3 +205,95 @@ This project is proprietary software for AI fashion analysis applications.
 ---
 
 **AI Fashion Extractor v2.0** - Revolutionizing fashion analysis with category-driven AI extraction.
+
+## 🎨 Design System (v2)
+
+### Principles
+- Professional & Minimal: Low-noise surfaces, clear hierarchy, restrained color usage.
+- Accessible: Focus visibility, reduced motion support, semantic landmarks.
+- Scalable: Token-driven decisions (color, spacing, radius, elevation, motion).
+- Performant: Subtle motion, no gratuitous parallax or large blocking animations.
+
+### Color Tokens
+Defined in CSS variables (OKLCH) and extended Tailwind palette `brand`:
+- `--background` / `--foreground`
+- `--primary` / `--primary-foreground`
+- `--muted` / `--muted-foreground`
+- `--accent`, `--secondary`, `--destructive`
+- Brand blues: 50–950 scale for future semantic mapping.
+
+Recommendation: Use semantic utilities (e.g. `bg-card`, `text-muted-foreground`) instead of raw hex values to retain dark-mode fidelity.
+
+### Typography
+- Base font: Inter (system fallbacks) via CSS variable.
+- Scale: `text-xs`, `sm`, `base`, `lg`, `xl`, `2xl`, `3xl`, `4xl`, `5xl`, `6xl` (hero). Avoid >`6xl` unless marketing page.
+- Use `tracking-tight` for large headings; avoid all-caps except micro labels.
+
+### Spacing Rhythm
+- Section vertical spacing: 48–64px (`py-12 md:py-16`).
+- Container padding: Horizontal `px-4 sm:px-6 lg:px-8` centralized in `Container` component.
+- Component internal padding: Cards use 20–24px (`p-5` / `p-6`), large panels 32–48px.
+
+### Elevation & Surfaces
+- Shadow scale (`shadow-xs`, `shadow-sm`, `shadow-md`, `shadow-lg`, `shadow-glow`).
+- Hover: Elevation shift only when interactive.
+- Blurred translucent surfaces use `backdrop-blur` + reduced alpha backgrounds.
+
+### Radius
+- Design token root: `--radius` (10px). Derived sizes in Tailwind config (sm, md, lg). Keep consistency; avoid ad-hoc rounding.
+
+### Components Added
+- `Container`: Standard width + horizontal padding.
+- `PageSection`: Layout wrapper with optional `subdued`, `borderTop`, `borderBottom`, `bleed`.
+- `StatCard`: Metric display with subtle reveal.
+- `FeatureCard`: Marketing features (interactive state, low motion).
+- `StepCard`: Workflow guidance with consistent icon presentation.
+- `EmptyState` / `ErrorState`: Standardized non-content & failure patterns.
+
+### Motion Guidelines
+Centralized variants in `lib/motion.ts`:
+- `fadeUp`, `fadeInScale`, `staggerContainer`.
+Usage:
+```ts
+<motion.div variants={fadeUp} initial="hidden" whileInView="show" />
+```
+Rules:
+- Limit entrance animations to first fold + key transitions.
+- Respect reduced motion: `prefers-reduced-motion` removes animations.
+- Max duration for simple reveals: 450ms; chain with stagger not > 120ms per element.
+
+### Accessibility
+- Landmarks: `header[role=banner]`, `nav[aria-label]`, logical heading order.
+- Focus: Visible focus rings using `focus-visible:ring` patterns.
+- Reduced Motion: Media query disables transitions for sensitive users.
+- ARIA labels on icon-only / ambiguous interactive elements.
+
+### Empty & Error States
+Structure:
+- Title (concise outcome)
+- Supporting description (actionable, no blame)
+- Primary action (progress) & secondary action (alternative / dismiss)
+- Use icon circle with brand tint for quick recognition.
+
+### Theming Strategy
+Current: Single light/dark via CSS variables + `.dark` class.
+Future: Introduce semantic themes (e.g. `--brand-hue`) allowing dynamic palette shifts without refactoring components.
+
+### Future Enhancements (Suggested)
+- Skeleton loaders for extraction table.
+- Global toast system standardization (success/info/destructive variants).
+- Form primitives: `<FormField />`, `<FieldGroup />` with validation states.
+- Analytics dashboard redesign with mini visualizations (spark lines / radial progress).
+- Command palette (quick nav + actions) using Radix Dialog + fuzzy search.
+- Theme switcher expansion (brand accent selection) persisted in user profile.
+
+---
+
+## ✅ Changelog (Design Overhaul)
+- Added Tailwind config with brand palette & motion tokens.
+- Refactored home hero + sections with composable primitives.
+- Implemented accessibility improvements (ARIA, focus, reduced motion support).
+- Centralized motion variants.
+- Added standardized empty & error states.
+
+This section will evolve as additional primitives (forms, tables, charts) are standardized.
