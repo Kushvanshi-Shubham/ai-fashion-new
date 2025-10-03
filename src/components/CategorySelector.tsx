@@ -200,7 +200,7 @@ export default function CategorySelector({
               <select
                 value={selectedDepartment}
                 onChange={(e) => handleDepartmentChange(e.target.value)}
-                className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring/30 focus:border-primary appearance-none bg-background text-foreground transition-all"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ring/30 focus:border-primary appearance-none bg-background text-foreground transition-all"
               >
                 <option value="">Choose a department...</option>
                 {hierarchy.departments.map((dept) => (
@@ -223,7 +223,7 @@ export default function CategorySelector({
                 value={selectedSubDepartment}
                 onChange={(e) => handleSubDepartmentChange(e.target.value)}
                 disabled={!selectedDepartment}
-                className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring/30 focus:border-primary appearance-none bg-background text-foreground disabled:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground transition-all"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ring/30 focus:border-primary appearance-none bg-background text-foreground disabled:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground transition-all"
               >
                 <option value="">Choose a sub-department...</option>
                 {availableSubDepartments.map((subDept) => (
@@ -242,7 +242,7 @@ export default function CategorySelector({
               3. Select Major Category
             </label>
             {availableCategories.length > 0 ? (
-              <div className="border border-border rounded-lg max-h-64 overflow-y-auto bg-background shadow-soft">
+              <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto bg-background shadow-soft">
                 {availableCategories.map((category) => (
                   <button
                     key={category.code}
@@ -251,7 +251,7 @@ export default function CategorySelector({
                       selectedSubDepartment, 
                       category
                     )}
-                    className={`w-full px-4 py-3 text-left hover:bg-accent/50 border-b border-border/30 last:border-b-0 focus:outline-none focus:bg-accent/60 transition-all ${
+                    className={`w-full px-4 py-3 text-left hover:bg-accent/50 border-b border-gray-200/30 last:border-b-0 focus:outline-none focus:bg-accent/60 transition-all ${
                       selectedCategoryCode === category.code ? 'bg-primary/10 border-l-4 border-l-primary shadow-soft' : ''
                     }`}
                   >
@@ -272,7 +272,7 @@ export default function CategorySelector({
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-3 border border-border rounded-lg bg-muted/50 text-muted-foreground text-sm">
+              <div className="px-4 py-3 border border-gray-200 rounded-lg bg-muted/50 text-muted-foreground text-sm">
                 {selectedSubDepartment ? 'No categories available' : 'Select a sub-department first'}
               </div>
             )}

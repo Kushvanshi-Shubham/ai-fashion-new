@@ -185,9 +185,9 @@ export const RichDataTable: React.FC<RichDataTableProps> = ({
   }
 
   return (
-    <div className={`surface border-border/60 ${className}`}>
+    <div className={`surface border-gray-200/60 ${className}`}>
       {/* Header & Filters */}
-      <div className="p-6 border-b border-border/60 bg-card/60 backdrop-blur-sm">
+      <div className="p-6 border-b border-gray-200/60 bg-card/60 backdrop-blur-sm">
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <h3 className="text-md font-semibold tracking-tight text-foreground">Extraction Results</h3>
           <div className="text-xs text-muted-foreground">
@@ -539,7 +539,7 @@ const ResultRow: React.FC<ResultRowProps> = ({
               {attributeKeys.map(key => {
                 const attribute = isCompletedExtraction(result) ? result.attributes[key] : undefined
                 return (
-                  <div key={key} className="border border-border/60 rounded-md p-3 bg-card/50 backdrop-blur-sm">
+                  <div key={key} className="border border-gray-200/60 rounded-md p-3 bg-card/50 backdrop-blur-sm">
                     <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                       {key.replace(/_/g, ' ')}
                     </div>

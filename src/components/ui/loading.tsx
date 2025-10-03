@@ -70,7 +70,7 @@ export function LoadingSpinner({ size = 'md', variant = 'default', className, ..
   return (
     <div
       className={cn(
-        'rounded-full border-2 border-border/30 animate-spin',
+        'rounded-full border-2 border-gray-200/30 animate-spin',
         sizeClasses[size],
         className
       )}

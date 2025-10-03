@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Performance optimizations
-  swcMinify: true,
-  
   // Image optimization
   images: {
     domains: ['localhost'],
@@ -13,10 +10,12 @@ const nextConfig = {
   // Compression
   compress: true,
   
+  // External packages for server components
+  serverExternalPackages: ['sharp'],
+  
   // Experimental features for better performance
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-slot'],
-    serverComponentsExternalPackages: ['sharp'],
   },
 }
 

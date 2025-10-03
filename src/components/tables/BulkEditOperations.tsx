@@ -104,7 +104,7 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className={`surface border-border/60 ${className}`}
+      className={`surface border-gray-200/60 ${className}`}
     >
       <div className="p-4 md:p-5">
         {/* Header with selection info */}
@@ -137,7 +137,7 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
             className={`flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase transition-colors border ${
               stats.completed > 0
                 ? 'bg-primary-light/20 text-primary border-primary/30 hover:bg-primary-light/30'
-                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-border/50'
+                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-gray-200/50'
             }`}
           >
             <Edit3 className="w-4 h-4" />
@@ -151,7 +151,7 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
             className={`flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase transition-colors border ${
               stats.completed > 0
                 ? 'bg-success-light/30 text-success border-success/40 hover:bg-success-light/50'
-                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-border/50'
+                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-gray-200/50'
             }`}
           >
             <Download className="w-4 h-4" />
@@ -164,7 +164,7 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
             className={`flex items-center space-x-2 rounded-md px-3 py-2 text-xs font-medium tracking-wide uppercase transition-colors border ${
               stats.failed > 0
                 ? 'bg-warning-light/40 text-warning border-warning/50 hover:bg-warning-light/60'
-                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-border/50'
+                : 'bg-muted text-muted-foreground/50 cursor-not-allowed border-gray-200/50'
             }`}
           >
             <RefreshCw className="w-4 h-4" />
@@ -187,7 +187,7 @@ export const BulkEditOperations: React.FC<BulkEditOperationsProps> = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-4 p-4 rounded-md border border-border/60 bg-muted/40 backdrop-blur-sm"
+              className="mt-4 p-4 rounded-md border border-gray-200/60 bg-muted/40 backdrop-blur-sm"
             >
               <h4 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground mb-3">
                 Bulk Edit {stats.completed} completed extraction{stats.completed !== 1 ? 's' : ''}

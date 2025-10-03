@@ -117,7 +117,7 @@ const CategoryCard = memo(function CategoryCard({
         relative surface cursor-pointer group overflow-hidden
         ${isSelected 
           ? 'border-primary/60 shadow-elevated bg-gradient-to-br from-primary/5 via-primary/3 to-transparent' 
-          : 'border-border/50 hover:border-primary/30'
+          : 'border-gray-200/50 hover:border-primary/30'
         }
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${!cf.isActive ? 'opacity-75' : ''}

@@ -3,8 +3,9 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Providers } from './providers'
 import { ThemeProvider } from '@/contexts/ThemeContext'
-import Header from '@/components/Header'
-import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { Header } from '@/components/layout/header'
+import { AppSidebar } from '@/components/layout/app-sidebar'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import './globals.css'
 
 const inter = Inter({ 
@@ -101,19 +102,22 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://api.openai.com" />
       </head>
       <body 
-        className="min-h-screen antialiased" 
+        className="min-h-screen bg-background font-sans antialiased" 
         suppressHydrationWarning
       >
         <ThemeProvider>
           <Providers>
-            <ErrorBoundary>
-              <div className="flex min-h-screen flex-col">
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
                 <Header />
-                <main className="flex-1 animate-fade-in">
-                  {children}
+                <main className="flex-1 overflow-auto">
+                  <div className="container mx-auto p-6 space-y-6">
+                    {children}
+                  </div>
                 </main>
-              </div>
-            </ErrorBoundary>
+              </SidebarInset>
+            </SidebarProvider>
           </Providers>
         </ThemeProvider>
         
