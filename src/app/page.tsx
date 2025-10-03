@@ -1,161 +1,162 @@
-'use client'
-
-// Simplified home page layout (lightweight hero + concise value props + CTA)
-// Previous, more elaborate marketing blocks (stats, multi-section workflow) removed for focus & speed.
-// If you need the old version, check git history prior to this commit.
-
-import React from 'react'
 import Link from 'next/link'
-import { ArrowRight, Sparkles, Tags, Brain, Zap, Database, BarChart3 } from 'lucide-react'
+import { ArrowRight, Eye, Zap, Shield, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Container } from '@/components/ui/container'
-import { PageSection } from '@/components/ui/page-section'
-
-type MiniMetric = { icon: React.ReactNode; label: string; value: string }
-type Feature = { icon: React.ReactNode; title: string; body: string }
 
 export default function HomePage() {
-  const metrics: MiniMetric[] = [
-    { icon: <Tags className="w-4 h-4" />, label: 'Categories', value: '283' },
-    { icon: <BarChart3 className="w-4 h-4" />, label: 'Attributes', value: '80+' },
-    { icon: <Brain className="w-4 h-4" />, label: 'Accuracy', value: '95%+' }
-  ]
-
-  const features: Feature[] = [
-    {
-      icon: <Tags className="w-5 h-5 text-primary" />,
-      title: 'Structured Extraction',
-      body: 'Category hierarchy drives which attributes are inferred—no noisy extras.'
-    },
-    {
-      icon: <Brain className="w-5 h-5 text-accent" />,
-      title: 'Vision + Language',
-      body: 'Combines GPT-4 Vision reasoning with curated fashion taxonomies.'
-    },
-    {
-      icon: <Zap className="w-5 h-5 text-amber-500" />,
-      title: 'Fast Turnaround',
-      body: 'Batch process images in seconds with parallel inference + caching.'
-    },
-    {
-      icon: <Database className="w-5 h-5 text-emerald-500" />,
-      title: 'Rich Export',
-      body: 'Download JSON / CSV / XLSX with confidence scoring & provenance.'
-    }
-  ]
-
   return (
-    <main className="min-h-screen flex flex-col">
-      {/* Hero */}
-      <PageSection bleed className="relative overflow-hidden text-center py-24 md:py-28">
-        <Container className="max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 mb-6 motion-fade-in motion-rise">
-            <Badge variant="soft" className="px-4 py-1.5 shadow-soft">
-              <Sparkles className="w-4 h-4 mr-2" /> GPT-4 Vision Powered
+    <main className="min-h-screen bg-white" id="main">
+      {/* Hero Section */}
+      <section className="section">
+        <div className="container text-center">
+          <div className="stack-lg max-w-4xl mx-auto">
+            <Badge variant="secondary">
+              AI-Powered Fashion Analysis
             </Badge>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6 text-balance motion-fade-in motion-rise [animation-delay:60ms]">
-            Fashion Attribute Intelligence
-            <span className="block mt-2 text-gradient">Built for real retail workflows</span>
-          </h1>
-          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 text-pretty motion-fade-in motion-rise [animation-delay:120ms]">
-            Upload product imagery, select its category path, and receive clean, validated fashion attributes with confidence scoring—ready for enrichment and analytics.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-2 mb-14 motion-fade-in motion-rise [animation-delay:180ms]">
-            <Link href="/category-workflow">
-              <Button size="lg" variant="premium" className="group">
-                Start Analysis <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            
+            <h1 className="text-5xl font-bold text-gray-900 leading-tight">
+              Extract Fashion Attributes
+              <span className="block text-primary">with Precision</span>
+            </h1>
+            
+            <p className="text-xl text-muted max-w-2xl mx-auto">
+              Upload product images and get structured fashion attributes using advanced AI vision technology. 
+              Built for retailers, brands, and marketplaces.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Button size="lg" asChild>
+                <Link href="/category-workflow">
+                  Start Analysis
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
               </Button>
-            </Link>
-            <Link href="/rich-tables">
-              <Button variant="outline" size="lg" className="group">
-                View Data <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              
+              <Button variant="secondary" size="lg" asChild>
+                <Link href="/rich-tables">
+                  View Data
+                </Link>
               </Button>
-            </Link>
-          </div>
-
-          {/* Metrics Bar */}
-          <div className="motion-fade-in [animation-delay:240ms] mt-4">
-            <div className="mx-auto max-w-3xl rounded-2xl border border-border/50 bg-muted/40 backdrop-blur-sm px-4 py-3 flex divide-x divide-border/50 shadow-sm">
-              {metrics.map((m) => (
-                <div key={m.label} className="flex-1 flex flex-col items-center text-center px-3">
-                  <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground leading-none mb-1">
-                    {m.icon}
-                    <span>{m.value}</span>
-                  </div>
-                  <span className="text-[10px] tracking-wide uppercase text-muted-foreground/80">{m.label}</span>
-                </div>
-              ))}
             </div>
           </div>
-          {/* Added larger breathing room below metrics */}
-          <div className="mt-16" />
-        </Container>
-        {/* subtle backdrop shapes */}
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-80 h-80 bg-accent/10 blur-3xl rounded-full" />
         </div>
-      </PageSection>
+      </section>
 
-      {/* Feature Grid */}
-      <PageSection subdued borderTop>
-        <Container className="max-w-5xl mx-auto">
-          <div className="mb-14 text-center">
-            <h2 className="text-3xl md:text-[2.6rem] font-bold tracking-tight mb-5 leading-tight">Why it works better</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto text-pretty text-sm md:text-base leading-relaxed">
-              Precision-first extraction pipeline grounded in curated attribute schemas and adaptive reasoning.
-            </p>
-          </div>
-          <ul className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch" aria-label="Key capabilities">
-            {features.map(f => (
-              <li key={f.title} className="rounded-xl border bg-card/70 shadow-sm hover:shadow-md transition flex flex-col p-5 motion-fade-in motion-rise">
-                <div className="w-10 h-10 rounded-md bg-muted/70 ring-1 ring-border/40 flex items-center justify-center mb-2">
-                  {f.icon}
-                </div>
-                <h3 className="text-sm font-semibold leading-tight mb-2 flex-none">{f.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed flex-grow">{f.body}</p>
-                <div className="mt-4 h-px bg-border/40 w-full opacity-0 group-hover:opacity-100 transition" aria-hidden="true" />
-              </li>
-            ))}
-          </ul>
-        </Container>
-      </PageSection>
-
-      {/* Single CTA */}
-      <PageSection subdued borderTop className="relative overflow-hidden pt-28">
-        <Container className="max-w-4xl mx-auto text-center motion-fade-in motion-rise">
-          <div className="inline-flex items-center gap-2 mb-5">
-            <Badge variant="soft" className="px-3 py-1 text-[11px] font-medium tracking-wide">Get Started</Badge>
-          </div>
-          <h2 className="text-2xl md:text-[1.9rem] font-semibold mb-5 leading-tight">Ready to enrich your catalog?</h2>
-            <p className="text-muted-foreground mb-10 text-pretty max-w-2xl mx-auto text-sm md:text-base leading-relaxed">
-              Start a guided extraction session now—no lengthy setup or model training cycle required.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/category-workflow">
-                <Button size="lg" variant="premium" className="group">
-                  Launch Workflow <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link href="/analytics">
-                <Button size="lg" variant="outline">View Analytics</Button>
-              </Link>
+      {/* Stats */}
+      <section className="section-sm surface">
+        <div className="container">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+            <div>
+              <div className="text-3xl font-bold text-primary">283</div>
+              <div className="text-sm text-subtle">Categories</div>
             </div>
-        </Container>
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[620px] h-[620px] rounded-full bg-primary/5 blur-3xl" />
-        </div>
-      </PageSection>
-
-      <footer className="mt-auto border-t border-border/60 py-10 text-center text-xs text-muted-foreground">
-        <Container className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 font-medium text-foreground">
-            <Sparkles className="w-4 h-4 text-primary" /> Fashion AI Platform
+            <div>
+              <div className="text-3xl font-bold text-primary">80+</div>
+              <div className="text-sm text-subtle">Attributes</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-primary">95%+</div>
+              <div className="text-sm text-subtle">Accuracy</div>
+            </div>
           </div>
-          <p className="opacity-70">© 2025 • Built with structured vision intelligence</p>
-        </Container>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="section">
+        <div className="container">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Why Choose Our Platform
+            </h2>
+            <p className="text-xl text-muted max-w-2xl mx-auto">
+              Professional-grade AI analysis with industry-leading accuracy and speed.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="card p-8 text-center">
+              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Eye className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                Vision AI
+              </h3>
+              <p className="text-muted">
+                Advanced computer vision technology identifies clothing details, colors, patterns, and materials with high precision.
+              </p>
+            </div>
+            
+            <div className="card p-8 text-center">
+              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Zap className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                Fast Processing
+              </h3>
+              <p className="text-muted">
+                Batch process hundreds of images in minutes with parallel processing and smart caching.
+              </p>
+            </div>
+            
+            <div className="card p-8 text-center">
+              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                Structured Data
+              </h3>
+              <p className="text-muted">
+                Get clean, structured data ready for your catalog, search, and analytics systems.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="section surface">
+        <div className="container text-center">
+          <div className="stack-lg max-w-3xl mx-auto">
+            <h2 className="text-4xl font-bold text-gray-900">
+              Ready to Get Started?
+            </h2>
+            <p className="text-xl text-muted">
+              Start extracting fashion attributes from your product images today. 
+              No setup required.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Button size="lg" asChild>
+                <Link href="/category-workflow">
+                  Launch Platform
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+              </Button>
+              
+              <Button variant="ghost" size="lg" asChild>
+                <Link href="/analytics">
+                  <Download className="w-5 h-5" />
+                  View Sample Data
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 py-12">
+        <div className="container text-center">
+          <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
+            <div className="w-4 h-4 bg-primary rounded flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded"></div>
+            </div>
+            Fashion AI Platform
+          </div>
+          <div className="text-subtle text-sm mt-2">
+            © 2025 • Professional Fashion Analysis
+          </div>
+        </div>
       </footer>
     </main>
   )

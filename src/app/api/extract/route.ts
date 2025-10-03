@@ -20,10 +20,10 @@ const extractionLimiter = rateLimit({
 })
 
 export async function POST(request: NextRequest) {
-  console.log('[Extract API] POST request received');
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-  
-  try {
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Extract API] POST request received');
+    }  try {
     let rateLimitInfo;
     // Apply rate limiting
     try {
@@ -53,11 +53,15 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null
     const categoryId = formData.get('categoryId') as string
 
-    console.log(`[Extract API] Request validation - File: ${file ? `${file.name} (${file.size} bytes)` : 'null'}, CategoryId: ${categoryId || 'null'}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Extract API] Request validation - File: ${file ? `${file.name} (${file.size} bytes)` : 'null'}, CategoryId: ${categoryId || 'null'}`);
+    }
 
     // Validate inputs
     if (!file || !categoryId) {
-      console.log(`[Extract API] Missing required fields - File: ${!!file}, CategoryId: ${!!categoryId}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Extract API] Missing required fields - File: ${!!file}, CategoryId: ${!!categoryId}`);
+      }
       return NextResponse.json({
         success: false,
         error: 'Missing required fields',
@@ -76,7 +80,9 @@ export async function POST(request: NextRequest) {
     })
 
     if (!imageValidation.valid) {
-      console.log(`[Extract API] Image validation failed: ${imageValidation.error}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Extract API] Image validation failed: ${imageValidation.error}`);
+      }
       return NextResponse.json({
         success: false,
         error: imageValidation.error,

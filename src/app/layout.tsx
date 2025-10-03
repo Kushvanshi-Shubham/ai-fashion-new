@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import { Providers } from './providers'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import Header from '@/components/Header'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import './globals.css'
 
 const inter = Inter({ 
@@ -105,12 +106,14 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <Providers>
-            <div className="flex min-h-screen flex-col">
-              <Header />
-              <main className="flex-1 animate-fade-in">
-                {children}
-              </main>
-            </div>
+            <ErrorBoundary>
+              <div className="flex min-h-screen flex-col">
+                <Header />
+                <main className="flex-1 animate-fade-in">
+                  {children}
+                </main>
+              </div>
+            </ErrorBoundary>
           </Providers>
         </ThemeProvider>
         
