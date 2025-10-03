@@ -23,7 +23,6 @@ interface CategoryCardProps {
   disabled?: boolean
   showStats?: boolean
   className?: string
-  animationIndex?: number // optional stable index for staggered animations
 }
 
 const CategoryCard = memo(function CategoryCard({
@@ -32,8 +31,7 @@ const CategoryCard = memo(function CategoryCard({
   onSelect,
   disabled = false,
   showStats = true,
-  className = '',
-  animationIndex = 0
+  className = ''
 }: CategoryCardProps) {
   // Narrow the incoming partial type for safe reads
   const cf = category as Partial<CategoryFormData> & Partial<Category>
@@ -130,7 +128,7 @@ const CategoryCard = memo(function CategoryCard({
       transition={{ 
         duration: 0.4, 
         ease: [0.22, 1, 0.36, 1],
-        delay: Math.min(animationIndex * 0.025, 0.25) // deterministic, avoids hydration mismatch
+        delay: Math.random() * 0.1 
       }}
     >
       {/* Selection Indicator */}
