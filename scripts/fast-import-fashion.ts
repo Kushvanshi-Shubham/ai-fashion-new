@@ -1,4 +1,4 @@
-import { PrismaClient, AttributeType } from '@prisma/client'
+import { PrismaClient, AttributeType, Prisma } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -15,7 +15,14 @@ async function main() {
     
     let attrCount = 0
     for (const [key, config] of Object.entries(MASTER_ATTRIBUTES)) {
-      const attributeConfig = config as any
+      type AttributeOption = { value: string; label?: string }
+      type AttributeConfig = {
+        label: string
+        type: string
+        description?: string
+        allowedValues?: AttributeOption[] | null
+      }
+      const attributeConfig = config as unknown as AttributeConfig
       
       await prisma.masterAttribute.upsert({
         where: { key },
@@ -26,7 +33,8 @@ async function main() {
           type: attributeConfig.type === 'select' ? 'SELECT' as AttributeType : 'TEXT' as AttributeType,
           description: attributeConfig.description || null,
           
-          allowedValues: attributeConfig.allowedValues || null,
+          // Persist only raw string values if present. Use null when absent for JSON nullable column.
+          allowedValues: attributeConfig.allowedValues ? attributeConfig.allowedValues.map(o => o.value) : Prisma.DbNull,
           aiExtractable: true,
           aiWeight: 1.0,
           aiPromptHint: `Extract ${attributeConfig.label.toLowerCase()} from image`,
@@ -105,8 +113,16 @@ async function main() {
   let catCount = 0
   let mappingCount = 0
     
+    interface CategoryData {
+      id: string
+      displayName: string
+      description?: string
+      subDepartment: string
+      isActive?: boolean
+      attributes?: Record<string, boolean>
+    }
     for (const categoryDataRaw of (CATEGORY_DEFINITIONS as unknown[])) {
-      const categoryData: any = categoryDataRaw
+      const categoryData = categoryDataRaw as CategoryData
       try {
         // Find sub-department ID
         const subDeptId = subDeptMap[categoryData.subDepartment]
