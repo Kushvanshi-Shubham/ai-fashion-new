@@ -1,0 +1,24 @@
+/* Utility classes (shadows, gradients, patterns, accessibility, responsive) */
+.shadow-soft { box-shadow:var(--shadow-soft); }
+.shadow-surface { box-shadow:var(--shadow-surface); }
+.shadow-elevated { box-shadow:var(--shadow-elevated); }
+.shadow-glow { box-shadow:var(--shadow-glow); }
+.gradient-primary { background:linear-gradient(135deg,hsl(var(--primary)) 0%, color-mix(in srgb,hsl(var(--primary)) 85%, hsl(var(--accent)) 15%) 100%); }
+.gradient-accent { background:linear-gradient(135deg,hsl(var(--accent)) 0%, color-mix(in srgb,hsl(var(--accent)) 85%, hsl(var(--primary)) 15%) 100%); }
+.gradient-soft { background:linear-gradient(135deg,color-mix(in srgb,hsl(var(--primary)) 8%, transparent) 0%, color-mix(in srgb,hsl(var(--accent)) 6%, transparent) 100%); }
+.border-gradient { border:1px solid transparent; background:linear-gradient(hsl(var(--background)), hsl(var(--background))) padding-box, linear-gradient(135deg,color-mix(in srgb,hsl(var(--primary)) 50%, transparent), color-mix(in srgb,hsl(var(--accent)) 30%, transparent)) border-box; }
+.gridlines { background-image:linear-gradient(to right, color-mix(in srgb,hsl(var(--border)) 40%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb,hsl(var(--border)) 40%, transparent) 1px, transparent 1px); background-size:24px 24px; }
+.dot-pattern { background-image:radial-gradient(circle at 1px 1px, color-mix(in srgb,hsl(var(--primary)) 15%, transparent) 1px, transparent 0); background-size:20px 20px; }
+.text-gradient { background:linear-gradient(135deg,hsl(var(--foreground)) 0%, color-mix(in srgb,hsl(var(--foreground)) 70%, hsl(var(--primary)) 30%) 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.safe-px { padding-inline:clamp(1rem,4vw,3rem); }
+.safe-py { padding-block:clamp(2rem,6vw,4rem); }
+.responsive-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(280px,100%),1fr)); gap:clamp(1rem,3vw,2rem); }
+.responsive-flex { display:flex; flex-direction:column; gap:clamp(.75rem,2vw,1.5rem); }
+@media (min-width:768px){ .responsive-flex { flex-direction:row; align-items:center; }}
+.text-balance { text-wrap:balance; }
+.text-pretty { text-wrap:pretty; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+*:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:2px; border-radius:4px; }
+.will-change-transform { will-change:transform; }
+.will-change-auto { will-change:auto; }
+.hide-sm { @media (max-width:640px){ display:none !important; } }

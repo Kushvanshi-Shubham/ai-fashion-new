@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
 import { Redis } from 'ioredis'
 
+// Global (module-level) flags to avoid noisy repeated logging and to reuse limiters.
+let hasLoggedRedisError = false
+const limiterCache = new Map<string, RateLimiter>()
+
 export class RateLimitExceededError extends Error {
   constructor(
     public readonly retryAfter: number,
@@ -55,9 +59,10 @@ class RateLimiter {
 
         // Attach handlers to gracefully handle connection failures and avoid unhandled exception events
         this.redis.on('error', (error) => {
-          // Downgrade to memory; avoid repeated noisy logs
-          if (!this.usingMemoryFallback) {
+          // Downgrade to memory; avoid repeated noisy logs across instances
+          if (!hasLoggedRedisError) {
             console.warn('Redis error (rate-limit) – switching to in-memory fallback:', error)
+            hasLoggedRedisError = true
           }
           this.usingMemoryFallback = true
           try { void this.redis?.quit() } catch { /* ignore */ }
@@ -72,7 +77,10 @@ class RateLimiter {
           console.debug('Redis (rate-limit) ready')
         })
       } catch (err) {
-        console.warn('Failed to initialize Redis for rate-limit, falling back to memory:', err)
+        if (!hasLoggedRedisError) {
+          console.warn('Failed to initialize Redis for rate-limit, falling back to memory:', err)
+          hasLoggedRedisError = true
+        }
         this.redis = null
         this.usingMemoryFallback = true
       }
@@ -192,5 +200,13 @@ class RateLimiter {
   }
 }
 
-export const rateLimit = (config: RateLimitConfig) => new RateLimiter(config)
+export const rateLimit = (config: RateLimitConfig) => {
+  const key = [config.interval, config.maxRequests, config.blockDuration || 0, config.maxStoreSize || 0].join(':')
+  let existing = limiterCache.get(key)
+  if (!existing) {
+    existing = new RateLimiter(config)
+    limiterCache.set(key, existing)
+  }
+  return existing
+}
 export type RateLimiterInstance = ReturnType<typeof rateLimit>
