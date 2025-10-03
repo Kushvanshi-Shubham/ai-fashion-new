@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart3, 
   CheckCircle2, 
@@ -15,6 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EmptyState } from '@/components/ui/empty-state';
+
 
 import CategorySelector from '@/components/CategorySelector';
 import CategoryAttributeTable from '@/components/CategoryAttributeTable';
@@ -292,13 +293,11 @@ export default function CategoryWorkflowPage() {
                 </CardHeader>
                 <CardContent>
                   {!workflow.selectedCategory ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <Circle className="mb-4 h-12 w-12 text-muted-foreground/50" />
-                      <h3 className="font-semibold">Select a Category First</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Choose a category before uploading images
-                      </p>
-                    </div>
+                    <EmptyState 
+                      icon={<Circle className="h-12 w-12 text-muted-foreground/50" />}
+                      title="Select a Category First"
+                      description="Choose a category before uploading images"
+                    />
                   ) : (
                     <ImageUpload onFilesSelected={workflow.addImages} />
                   )}
@@ -320,13 +319,11 @@ export default function CategoryWorkflowPage() {
               </CardHeader>
               <CardContent>
                 {workflow.results.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Circle className="mb-4 h-12 w-12 text-muted-foreground/50" />
-                    <h3 className="font-semibold">No Results Yet</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Upload and process images to see extraction results
-                    </p>
-                  </div>
+                  <EmptyState 
+                    icon={<Circle className="h-12 w-12 text-muted-foreground/50" />}
+                    title="No Results Yet"
+                    description="Upload and process images to see extraction results"
+                  />
                 ) : (
                   <ExtractionResults results={workflow.results} />
                 )}

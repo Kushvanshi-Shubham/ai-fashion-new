@@ -84,6 +84,11 @@ const menuItems = [
         url: '/categories',
         icon: FolderOpen,
       },
+      {
+        title: 'Components Demo',
+        url: '/components-demo',
+        icon: Bot,
+      },
     ],
   },
   {

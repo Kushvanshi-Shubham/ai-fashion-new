@@ -1,9 +1,18 @@
 'use client'
 
-import React from 'react'
-import { ExtractionTableManager } from '@/components/tables/ExtractionTableManager'
-import { ExtractionResult } from '@/types/fashion'
+import React, { useState } from 'react'
+import { DataTable } from '@/components/ui/data-table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ExtractionResult, CompletedExtractionResult } from '@/types/fashion'
 import { toast } from 'sonner'
+import { Download, RefreshCw, Eye, Edit, CheckCircle, XCircle, Clock } from 'lucide-react'
+
+// Type guard to check if result is completed
+function isCompletedResult(result: ExtractionResult): result is CompletedExtractionResult {
+  return result.status === 'completed'
+}
 
 // Sample data for demonstration
 const sampleResults: ExtractionResult[] = [
@@ -117,150 +126,278 @@ const sampleResults: ExtractionResult[] = [
   }
 ]
 
-export default function RichDataTablesDemo() {
-  const handleRetry = (resultId: string) => {
-    toast.info(`Retrying extraction for result ${resultId}`)
-    // In real implementation, this would trigger a retry
-    console.log('Retrying extraction for:', resultId)
+export default function RichTablesPage() {
+  const [loading, setLoading] = useState(false)
+
+  // Transform fashion extraction data for the DataTable
+  const tableData = sampleResults.map(result => ({
+    id: result.id,
+    fileName: result.fileName,
+    status: result.status,
+    confidence: isCompletedResult(result) ? result.confidence || 0 : 0,
+    tokensUsed: isCompletedResult(result) ? result.tokensUsed || 0 : 0,
+    processingTime: isCompletedResult(result) ? result.processingTime || 0 : 0,
+    createdAt: result.createdAt,
+    category: isCompletedResult(result) ? result.attributes?.category?.value || 'N/A' : 'N/A',
+    color: isCompletedResult(result) ? result.attributes?.color?.value || 'N/A' : 'N/A',
+    brand: isCompletedResult(result) ? result.attributes?.brand?.value || 'N/A' : 'N/A',
+    price: isCompletedResult(result) ? result.attributes?.price?.value || 'N/A' : 'N/A'
+  }))
+
+  const columns = [
+    {
+      key: 'fileName' as const,
+      header: 'File Name',
+      sortable: true,
+      render: (item: typeof tableData[0]) => (
+        <div className="font-medium text-sm">{item.fileName}</div>
+      )
+    },
+    {
+      key: 'status' as const,
+      header: 'Status',
+      sortable: true,
+      render: (item: typeof tableData[0]) => {
+        const statusConfig = {
+          completed: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-600' },
+          processing: { variant: 'secondary' as const, icon: Clock, color: 'text-blue-600' },
+          failed: { variant: 'destructive' as const, icon: XCircle, color: 'text-red-600' },
+          pending: { variant: 'outline' as const, icon: Clock, color: 'text-yellow-600' }
+        }
+        const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.pending
+        const Icon = config.icon
+        
+        return (
+          <Badge variant={config.variant} className="gap-1">
+            <Icon className="w-3 h-3" />
+            {item.status}
+          </Badge>
+        )
+      }
+    },
+    {
+      key: 'category' as const,
+      header: 'Category',
+      sortable: true,
+      render: (item: typeof tableData[0]) => (
+        <Badge variant="outline">{item.category}</Badge>
+      )
+    },
+    {
+      key: 'color' as const,
+      header: 'Color',
+      sortable: true
+    },
+    {
+      key: 'brand' as const,
+      header: 'Brand',
+      sortable: true
+    },
+    {
+      key: 'price' as const,
+      header: 'Price',
+      sortable: true,
+      render: (item: typeof tableData[0]) => (
+        <span className="font-mono text-sm">{item.price}</span>
+      )
+    },
+    {
+      key: 'confidence' as const,
+      header: 'Confidence',
+      sortable: true,
+      render: (item: typeof tableData[0]) => (
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-medium">{item.confidence}%</div>
+          <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary rounded-full transition-all duration-300"
+              style={{ width: `${item.confidence}%` }}
+            />
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'tokensUsed' as const,
+      header: 'Tokens',
+      sortable: true,
+      render: (item: typeof tableData[0]) => (
+        <span className="text-xs font-mono">{item.tokensUsed?.toLocaleString()}</span>
+      )
+    },
+    {
+      key: 'processingTime' as const,
+      header: 'Time (ms)',
+      sortable: true,
+      render: (item: typeof tableData[0]) => (
+        <span className="text-xs font-mono">{item.processingTime?.toLocaleString()}</span>
+      )
+    },
+    {
+      key: 'actions' as const,
+      header: 'Actions',
+      render: (item: typeof tableData[0]) => (
+        <div className="flex gap-1">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={() => handleView(item.id)}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={() => handleEdit(item.id)}
+          >
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={() => handleDownload(item.id)}
+          >
+            <Download className="w-4 h-4" />
+          </Button>
+          {item.status === 'failed' && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0"
+              onClick={() => handleRetry(item.id)}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      )
+    }
+  ]
+
+  const handleView = (id: string) => {
+    console.log('Viewing:', id)
+    toast.info('View Details', { description: `Opening details for extraction ${id}` })
   }
 
-  const handleImageClick = (imageUrl: string, fileName?: string) => {
-    toast.info(`Opening image: ${fileName || imageUrl}`)
-    // In real implementation, this would open image in a modal or new tab
-    console.log('Opening image:', { imageUrl, fileName })
+  const handleEdit = (id: string) => {
+    console.log('Editing:', id)
+    toast.info('Edit Mode', { description: `Editing extraction ${id}` })
+  }
+
+  const handleRetry = (id: string) => {
+    console.log('Retrying:', id)
+    toast.success('Retry Started', { description: 'Re-processing the extraction...' })
+  }
+
+  const handleDownload = (id: string) => {
+    console.log('Downloading:', id)
+    toast.success('Download Started', { description: 'Preparing extraction data...' })
+  }
+
+  const handleRefresh = () => {
+    setLoading(true)
+    console.log('Refreshing data...')
+    toast.info('Refreshing', { description: 'Fetching latest extraction results...' })
+    
+    // Simulate API call
+    setTimeout(() => {
+      setLoading(false)
+      toast.success('Data Updated', { description: 'Extraction results refreshed' })
+    }, 1500)
+  }
+
+  const handleExport = (selectedItems: typeof tableData) => {
+    console.log('Exporting:', selectedItems.length, 'items')
+    toast.success('Export Started', { 
+      description: `Exporting ${selectedItems.length} extraction results to CSV` 
+    })
+  }
+
+  const handleRowClick = (item: typeof tableData[0]) => {
+    console.log('Row clicked:', item)
+    toast.info('Row Selected', { description: `Selected extraction: ${item.fileName}` })
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto safe-px safe-py">
-        {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-4xl font-bold text-foreground mb-3 tracking-tight">
-            Rich Data Tables Demo
-          </h1>
-          <p className="text-lg text-muted-foreground mb-6 text-pretty">
-            Comprehensive extraction results table with inline editing, sorting, filtering, and bulk operations
-          </p>
-          <div className="surface-glass p-6 border-l-4 border-primary">
-            <h2 className="text-base font-semibold text-foreground mb-4">Features Demonstrated:</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Inline attribute editing
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Advanced sorting & filtering
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Multi-row selection
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Bulk edit operations
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Bulk download (Excel)
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Expandable row details
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Status indicators
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Confidence scoring
-              </div>
-              <div className="flex items-center">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
-                Professional layout
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="container mx-auto py-8 space-y-8">
+      <div className="space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight">Fashion Extraction Results</h1>
+        <p className="text-xl text-muted-foreground max-w-3xl">
+          Advanced data tables showcasing AI fashion extraction results with sorting, filtering, 
+          and interactive features. Manage and analyze your fashion attribute data efficiently.
+        </p>
+      </div>
 
-        {/* Rich Data Table */}
-        <ExtractionTableManager
-          results={sampleResults}
-          onRetry={handleRetry}
-          onImageClick={handleImageClick}
-          className="mb-8"
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Extractions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{sampleResults.length}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {sampleResults.filter(r => r.status === 'completed').length}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Processing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {sampleResults.filter(r => r.status === 'processing').length}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Confidence</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {Math.round(sampleResults.reduce((acc, r) => acc + (isCompletedResult(r) ? r.confidence || 0 : 0), 0) / sampleResults.length)}%
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Data Table */}
+      <div className="space-y-6">
+        <DataTable
+          data={tableData}
+          columns={columns}
+          title="Extraction Results"
+          description="AI-powered fashion attribute extraction results with comprehensive data analysis"
+          loading={loading}
+          searchable
+          filterable
+          selectable
+          exportable
+          refreshable
+          onRefresh={handleRefresh}
+          onExport={handleExport}
+          onRowClick={handleRowClick}
+          emptyState={{
+            title: 'No extractions found',
+            description: 'Start processing fashion images to see extraction results here',
+            action: { label: 'New Extraction', onClick: () => console.log('Navigate to upload') }
+          }}
         />
-
-        {/* Instructions */}
-        <div className="surface-elevated p-8">
-          <h2 className="text-2xl font-semibold text-foreground mb-6">How to Use</h2>
-          <div className="space-y-6 text-muted-foreground">
-            <div>
-              <h3 className="font-semibold text-foreground mb-3">Table Features:</h3>
-              <ul className="space-y-2 ml-4">
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Sorting:</span> Click column headers to sort by that field</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Filtering:</span> Use the filter controls to narrow down results</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Row Expansion:</span> Click the chevron to see all attributes</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Inline Editing:</span> Click any attribute value to edit it directly</span>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-3">Bulk Operations:</h3>
-              <ul className="space-y-2 ml-4">
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Selection:</span> Check rows to select them for bulk operations</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Bulk Edit:</span> Edit attributes across multiple selected items</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Download:</span> Export selected results to Excel format</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full mr-3 mt-2 shrink-0"></span>
-                  <span><span className="font-medium text-foreground">Retry:</span> Retry failed extractions in bulk</span>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-4">Status Indicators:</h3>
-              <div className="flex flex-wrap gap-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 rounded-full bg-success shadow-soft"></div>
-                  <span className="text-sm font-medium">Completed</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 rounded-full bg-primary shadow-soft"></div>
-                  <span className="text-sm font-medium">Processing</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 rounded-full bg-destructive shadow-soft"></div>
-                  <span className="text-sm font-medium">Failed</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 rounded-full bg-muted-foreground shadow-soft"></div>
-                  <span className="text-sm font-medium">Pending</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

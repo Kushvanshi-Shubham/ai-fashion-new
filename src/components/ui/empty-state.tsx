@@ -7,7 +7,7 @@ interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string
   description?: string
   icon?: React.ReactNode
-  action?: { label: string; onClick: () => void; icon?: React.ReactNode; variant?: 'default' | 'premium' | 'outline' }
+  action?: { label: string; onClick: () => void; icon?: React.ReactNode; variant?: 'default' | 'outline' | 'secondary' }
   secondaryAction?: { label: string; onClick: () => void }
   variant?: 'default' | 'feature' | 'error' | 'success'
   badge?: { label: string; variant?: 'default' | 'secondary' | 'outline' }
@@ -88,7 +88,7 @@ export function EmptyState({
         <div className="space-y-4">
           {badge && (
             <div className="motion-scale" style={{ animationDelay: '0.3s' }}>
-              <Badge variant={badge.variant || 'soft'} className="mx-auto">
+              <Badge variant={badge.variant || 'secondary'} className="mx-auto">
                 {badge.label}
               </Badge>
             </div>
@@ -111,7 +111,7 @@ export function EmptyState({
             {action && (
               <Button 
                 onClick={action.onClick} 
-                variant={action.variant || (variant === 'feature' ? 'premium' : 'default')}
+                variant={action.variant || (variant === 'feature' ? 'default' : 'default')}
                 size="lg"
                 className="min-w-[140px] group"
               >
