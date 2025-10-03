@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
