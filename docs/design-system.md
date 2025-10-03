@@ -144,3 +144,32 @@ Legacy ad-hoc gray utility classes inside table & bulk action components replace
 - Hero title & subtitle now use fluid clamp scale: ensures optical center and prevents oversized headings on ultra-wide viewports.
 
 ---
+
+## v2.2 – Motion Simplification & Accessibility (October 2025)
+
+Goals: Eliminate hydration mismatch risk, reduce JS payload, and strengthen baseline accessibility.
+
+### Changes
+
+| Area | Before | After | Impact |
+| ---- | ------ | ----- | ------ |
+| Header Interactions | Framer Motion hover/tap scale + entry animation | Pure CSS `transition-transform` + utility classes | Removes runtime animation lib from header path |
+| Skip Link | Absent | Added `Skip to main content` anchored to `#main` | Keyboard users can bypass nav |
+| Focus Ring | Solid 2px ring (`hsl(var(--ring))`) | Softer translucent ring `hsl(var(--ring) / 0.6)` + larger offset | Better contrast layering on tinted surfaces |
+| Reduced Motion | Basic media query disabling most animation | Cancels `.motion-*` + adds `.motion-safe:transition-colors` | Clear contract for motion fallback |
+| Animation Library | Framer Motion partially used site‑wide | Removed from header (others pending) | Smaller bundle / less hydration work |
+
+### Implementation Notes
+
+- Added skip link for improved keyboard navigation.
+- Header refactored to eliminate `framer-motion` dependency; replaced with CSS scale transitions.
+- Updated focus ring styling in `utilities.css` for improved visibility and aesthetics.
+- Reduced motion users now receive instant, no-animation rendering of elements with `.motion-*` classes.
+
+### Next Targets
+
+1. Migrate table & discovery panel animations off Framer Motion.
+2. Provide density toggle (comfortable / compact) for data tables.
+3. Consolidate button subtle variants into single token-driven API.
+
+---
