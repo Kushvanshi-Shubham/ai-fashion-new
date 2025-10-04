@@ -5,6 +5,9 @@ import { triggerWorker } from './worker';
 const jobStore = new Map<string, ExtractionJob>();
 const jobQueue: string[] = [];
 
+// Keep completed/failed jobs for 10 minutes for status polling
+const JOB_RETENTION_TIME = 10 * 60 * 1000; // 10 minutes
+
 export const addJob = (data: ExtractionJob['data']): ExtractionJob => {
   const job: ExtractionJob = {
     id: uuidv4(),
@@ -16,11 +19,13 @@ export const addJob = (data: ExtractionJob['data']): ExtractionJob => {
   jobStore.set(job.id, job);
   jobQueue.push(job.id);
   console.log(`[JobManager] Job added: ${job.id}. Queue size: ${jobQueue.length}`);
+  console.log(`[JobManager] Job store now has ${jobStore.size} jobs: [${Array.from(jobStore.keys()).slice(-5).join(', ')}]`);
   triggerWorker();
   return job;
 };
 
 export const getJob = (id: string): ExtractionJob | undefined => {
+  console.log(`[JobManager] Looking for job ${id}. Store has ${jobStore.size} jobs:`, Array.from(jobStore.keys()));
   return jobStore.get(id);
 };
 
@@ -57,6 +62,12 @@ export const completeJob = (id: string, result: ExtractionJob['result']): Extrac
     job.updatedAt = new Date();
     jobStore.set(id, job);
     console.log(`[JobManager] Job completed: ${id}`);
+    
+    // Schedule cleanup after retention time
+    setTimeout(() => {
+      jobStore.delete(id);
+      console.log(`[JobManager] Job cleaned up: ${id}`);
+    }, JOB_RETENTION_TIME);
   }
   return job;
 };
@@ -68,7 +79,13 @@ export const failJob = (id: string, error: string): ExtractionJob | undefined =>
     job.error = error;
     job.updatedAt = new Date();
     jobStore.set(id, job);
-     console.log(`[JobManager] Job failed: ${id}. Error: ${error}`);
+    console.log(`[JobManager] Job failed: ${id}. Error: ${error}`);
+    
+    // Schedule cleanup after retention time
+    setTimeout(() => {
+      jobStore.delete(id);
+      console.log(`[JobManager] Failed job cleaned up: ${id}`);
+    }, JOB_RETENTION_TIME);
   }
   return job;
 };

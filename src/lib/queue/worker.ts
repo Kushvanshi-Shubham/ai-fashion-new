@@ -6,12 +6,18 @@ import {
 import { FashionAIService } from '../ai/fashion-ai-service';
 import { prisma } from '../database';
 import { ExtractionJob } from '@/types/job';
+import { isCompletedExtraction } from '@/types/fashion';
 
 let isProcessing = false;
 
 async function processJob(job: ExtractionJob) {
   console.log(`[Worker] Processing job: ${job.id}`);
   try {
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured. Please set up your environment variables.');
+    }
+
     // Convert buffer to base64 URL for the AI service
     const base64Image = `data:${job.data.imageType};base64,${job.data.imageBuffer.toString('base64')}`;
     
@@ -22,44 +28,32 @@ async function processJob(job: ExtractionJob) {
       true // Enable discovery mode
     );
 
-    if (extractionResult.success) {
-      const tokensUsed = extractionResult.tokenUsage.total;
-      const costUsd = extractionResult.cost;
-
-      // Convert attributes to the expected format
-      const formattedAttributes: Record<string, import('@/types/fashion').AttributeDetail> = {}
-      for (const [key, value] of Object.entries(extractionResult.attributes)) {
-        formattedAttributes[key] = {
-          value: value,
-          confidence: extractionResult.confidence,
-          reasoning: `AI extracted with ${extractionResult.confidence}% confidence`,
-          fieldLabel: key,
-          isValid: value !== null
-        }
-      }
+    if (isCompletedExtraction(extractionResult)) {
+      const tokensUsed = extractionResult.tokensUsed;
 
       const result = {
         status: 'completed' as const,
         extraction: {
-          attributes: formattedAttributes,
+          attributes: extractionResult.attributes,
           confidence: extractionResult.confidence,
           tokensUsed: tokensUsed,
-          model: extractionResult.aiModel,
-          cost: costUsd,
-          fromCache: false,
+          model: 'gpt-4-vision-preview', // Default model name
+          cost: 0, // Cost calculation would need to be added
+          fromCache: extractionResult.fromCache || false,
         },
-        discoveries: extractionResult.discoveries,
-        costUsd,
-        tokensUsed,
+        discoveries: [], // Discoveries would need to be extracted from the result
+        costUsd: 0, // Cost calculation would need to be added
+        tokensUsed: tokensUsed,
       };
       
       completeJob(job.id, result);
-      console.log(`[Worker] Completed job: ${job.id} with ${extractionResult.discoveries?.length || 0} discoveries`);
+      console.log(`[Worker] Completed job: ${job.id} with ${result.discoveries?.length || 0} discoveries`);
       
       // Persist analytics
       persistAnalytics(job, result, 'COMPLETED');
     } else {
-      const errorMsg = extractionResult.errors?.join(', ') || 'Unknown extraction error';
+      // Handle extraction failure (FailedExtractionResult)
+      const errorMsg = extractionResult.status === 'failed' ? extractionResult.error : 'Unknown extraction error';
       failJob(job.id, errorMsg);
       console.log(`[Worker] Failed job: ${job.id} - ${errorMsg}`);
     }
@@ -95,6 +89,7 @@ export async function startWorker() {
 // For this simulation, we can trigger it after a job is added.
 export function triggerWorker() {
     // Non-blocking trigger
+    console.log('[Worker] Trigger called, starting worker...');
     setTimeout(startWorker, 0);
 }
 

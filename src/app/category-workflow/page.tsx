@@ -8,7 +8,8 @@ import {
   Settings,
   Images,
   Brain,
-  ChevronRight
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,32 +81,33 @@ export default function CategoryWorkflowPage() {
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Header & Progress */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">
-              AI Fashion Extraction Workflow
-            </h1>
-            <p className="text-muted-foreground">
-              Category-driven extraction for precise fashion attribute analysis
-            </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-blue-950 dark:to-indigo-950">
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Header & Progress */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-100/90 to-indigo-100/90 dark:from-blue-900/80 dark:to-indigo-900/80 backdrop-blur-sm rounded-2xl shadow-xl border-2 border-blue-300/50 dark:border-blue-600/50">
+            <div className="space-y-2">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+                🔷 AI Fashion Extraction Workflow
+              </h1>
+              <p className="text-lg text-blue-700 dark:text-blue-200 font-medium">
+                🎯 Category-driven extraction for precise fashion attribute analysis
+              </p>
+            </div>
+            <Badge variant="secondary" className="text-lg px-4 py-2 bg-gradient-to-r from-blue-200 to-indigo-200 dark:from-blue-800/70 dark:to-indigo-800/70 text-blue-900 dark:text-blue-100 border-2 border-blue-400 dark:border-blue-500 shadow-md">
+              📊 {categoryStats.totalCategories} Categories Available
+            </Badge>
           </div>
-          <Badge variant="secondary" className="text-sm">
-            {categoryStats.totalCategories} Categories Available
-          </Badge>
-        </div>
 
-        {/* Progress Steps */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Workflow Progress</CardTitle>
-            <CardDescription>
-              Follow these steps to extract fashion attributes from your images
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* Progress Steps */}
+          <Card className="bg-blue-50/80 dark:bg-blue-950/60 backdrop-blur-sm border-2 border-blue-300 dark:border-blue-600 shadow-2xl">
+            <CardHeader className="pb-4 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 rounded-t-lg border-b border-blue-200 dark:border-blue-700">
+              <CardTitle className="text-2xl font-bold text-blue-900 dark:text-blue-100">📋 Workflow Progress</CardTitle>
+              <CardDescription className="text-lg text-blue-700 dark:text-blue-200">
+                🚀 Follow these steps to extract fashion attributes from your images
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
             <div className="flex items-center justify-between">
               {steps.map((step, index) => {
                 const Icon = step.icon
@@ -153,17 +155,19 @@ export default function CategoryWorkflowPage() {
         </Card>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Sidebar - Category Selection */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Selection</CardTitle>
-              <CardDescription>
-                Choose the fashion category for targeted extraction
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Sidebar - Category Selection */}
+          <div className="space-y-6">
+            <Card className="bg-blue-50/90 dark:bg-blue-950/70 backdrop-blur-sm border-2 border-blue-300 dark:border-blue-600 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-blue-200 to-indigo-200 dark:from-blue-800/50 dark:to-indigo-800/50 rounded-t-lg border-b border-blue-300 dark:border-blue-600">
+                <CardTitle className="text-xl font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                  🔷 Category Selection
+                </CardTitle>
+                <CardDescription className="text-blue-800 dark:text-blue-200 font-medium">
+                  🎯 Choose the fashion category for targeted extraction
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
               <CategorySelector
                 onCategorySelect={handleCategorySelect}
                 selectedCategory={workflow.selectedCategory}
@@ -171,49 +175,53 @@ export default function CategoryWorkflowPage() {
             </CardContent>
           </Card>
 
-          {/* Category Stats */}
-          {workflow.selectedCategory && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Category Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Total Fields</span>
-                  <Badge variant="outline">
-                    {workflow.selectedCategory.totalAttributes}
-                  </Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">AI Extractable</span>
-                  <Badge variant="default">
-                    {workflow.selectedCategory.extractableAttributes}
-                  </Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Coverage</span>
-                  <Badge variant="secondary">
-                    {Math.round((workflow.selectedCategory.extractableAttributes / workflow.selectedCategory.totalAttributes) * 100)}%
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+            {/* Category Stats */}
+            {workflow.selectedCategory && (
+              <Card className="bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/50 dark:to-cyan-900/50 border-2 border-blue-300 dark:border-blue-600 shadow-lg">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                    📊 Category Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-blue-50/70 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <span className="text-sm font-medium text-blue-800 dark:text-blue-200">📋 Total Fields</span>
+                    <Badge variant="outline" className="bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 border-blue-400 dark:border-blue-500 font-bold">
+                      {workflow.selectedCategory.totalAttributes}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-cyan-50/70 dark:bg-cyan-900/30 rounded-lg border border-cyan-200 dark:border-cyan-700">
+                    <span className="text-sm font-medium text-cyan-800 dark:text-cyan-200">🤖 AI Extractable</span>
+                    <Badge variant="default" className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold">
+                      {workflow.selectedCategory.extractableAttributes}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-indigo-50/70 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                    <span className="text-sm font-medium text-indigo-800 dark:text-indigo-200">🎯 Coverage</span>
+                    <Badge variant="secondary" className="bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 border-indigo-400 dark:border-indigo-500 font-bold">
+                      {Math.round((workflow.selectedCategory.extractableAttributes / workflow.selectedCategory.totalAttributes) * 100)}%
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
         </div>
 
-        {/* Main Content Area */}
-        <div className="lg:col-span-2">
-          {currentStep === 'category' && (
-            <Card>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                  <Settings className="h-8 w-8 text-primary" />
-                </div>
-                <CardTitle className="text-2xl">Welcome to AI Extraction</CardTitle>
-                <CardDescription className="text-base">
-                  Start by selecting a fashion category to configure targeted attribute extraction
-                </CardDescription>
-              </CardHeader>
+          {/* Main Content Area */}
+          <div className="lg:col-span-2">
+            {currentStep === 'category' && (
+              <Card className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-2 border-purple-200 dark:border-purple-700 shadow-2xl">
+                <CardHeader className="text-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 rounded-t-lg p-8">
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg">
+                    <Settings className="h-10 w-10 text-white" />
+                  </div>
+                  <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                    🎉 Welcome to AI Extraction
+                  </CardTitle>
+                  <CardDescription className="text-lg text-gray-600 dark:text-gray-300 font-medium">
+                    🚀 Start by selecting a fashion category to configure targeted attribute extraction
+                  </CardDescription>
+                </CardHeader>
               <CardContent className="space-y-6">
                 <Alert>
                   <Brain className="h-4 w-4" />
@@ -224,24 +232,24 @@ export default function CategoryWorkflowPage() {
                   </AlertDescription>
                 </Alert>
                 
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="rounded-lg border p-4">
-                    <div className="text-2xl font-bold text-primary">
-                      {categoryStats.totalDepartments}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+                  <div className="rounded-xl border-2 border-blue-200 dark:border-blue-700 p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 shadow-lg transform hover:scale-105 transition-all duration-200">
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+                      🏢 {categoryStats.totalDepartments}
                     </div>
-                    <div className="text-sm text-muted-foreground">Departments</div>
+                    <div className="text-sm font-medium text-blue-700 dark:text-blue-300">Departments</div>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <div className="text-2xl font-bold text-primary">
-                      {categoryStats.totalSubDepartments}
+                  <div className="rounded-xl border-2 border-green-200 dark:border-green-700 p-6 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/50 shadow-lg transform hover:scale-105 transition-all duration-200">
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
+                      🏪 {categoryStats.totalSubDepartments}
                     </div>
-                    <div className="text-sm text-muted-foreground">Sub-Departments</div>
+                    <div className="text-sm font-medium text-green-700 dark:text-green-300">Sub-Departments</div>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <div className="text-2xl font-bold text-primary">
-                      {categoryStats.averageEnabledAttributesPerCategory}
+                  <div className="rounded-xl border-2 border-purple-200 dark:border-purple-700 p-6 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50 shadow-lg transform hover:scale-105 transition-all duration-200">
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
+                      📊 {categoryStats.averageEnabledAttributesPerCategory}
                     </div>
-                    <div className="text-sm text-muted-foreground">Avg. Attributes</div>
+                    <div className="text-sm font-medium text-purple-700 dark:text-purple-300">Avg. Attributes</div>
                   </div>
                 </div>
               </CardContent>
@@ -264,6 +272,8 @@ export default function CategoryWorkflowPage() {
                   category={workflow.selectedCategory}
                   showDescription={true}
                   showOnlyExtractable={false}
+                  showNextButton={true}
+                  onNext={() => setCurrentStep('upload')}
                 />
               </CardContent>
             </Card>
@@ -299,7 +309,91 @@ export default function CategoryWorkflowPage() {
                       description="Choose a category before uploading images"
                     />
                   ) : (
-                    <ImageUpload onFilesSelected={workflow.addImages} />
+                    <div className="space-y-6">
+                      <ImageUpload 
+                        onFilesSelected={workflow.addImages}
+                        existingFiles={workflow.uploadedImages.map(img => ({
+                          id: img.id,
+                          name: img.file.name,
+                          size: img.file.size,
+                          type: img.file.type,
+                          preview: img.preview,
+                          status: img.status,
+                          progress: img.progress,
+                          error: img.error
+                        }))}
+                        onRemoveFile={workflow.removeImage}
+                      />
+                      
+                      {/* Extraction Controls */}
+                      {workflow.uploadedImages.length > 0 && (
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-2 border-blue-300 dark:border-blue-600 rounded-xl p-6 shadow-lg">
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">🚀 Ready for AI Extraction</h4>
+                              <p className="text-sm font-medium text-blue-700 dark:text-blue-300 bg-white/50 dark:bg-black/20 px-3 py-1 rounded-full inline-block">
+                                📊 {workflow.stats.pending} pending • {workflow.stats.processing} processing • {workflow.stats.completed} completed
+                              </p>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-4">
+                              <Button
+                                onClick={workflow.startBatchExtraction}
+                                disabled={!workflow.canStartExtraction || workflow.isProcessing}
+                                size="lg"
+                                className="flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold text-lg px-8 py-4 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 border-0"
+                              >
+                                {workflow.isProcessing ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-3 border-white"></div>
+                                    <span>🔄 Processing...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Brain className="h-6 w-6" />
+                                    <span>🧠 Start AI Extraction</span>
+                                  </>
+                                )}
+                              </Button>
+                              
+                              {workflow.completedImages.length > 0 && (
+                                <Button
+                                  onClick={() => setCurrentStep('results')}
+                                  variant="outline"
+                                  size="lg"
+                                  className="flex items-center gap-3 border-2 border-green-500 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-950/20 font-semibold text-lg px-6 py-4 rounded-xl shadow-md transform hover:scale-105 transition-all duration-200"
+                                >
+                                  <span>📊 View Results</span>
+                                  <ArrowRight className="h-5 w-5" />
+                                </Button>
+                              )}
+                            </div>
+                            
+                            {/* Progress Bar */}
+                            {workflow.uploadedImages.length > 0 && (
+                              <div className="w-full">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress</span>
+                                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                    {Math.round((workflow.stats.completed / workflow.stats.total) * 100)}%
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden shadow-inner">
+                                  <div 
+                                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                                    style={{ 
+                                      width: `${Math.round((workflow.stats.completed / workflow.stats.total) * 100)}%` 
+                                    }}
+                                  >
+                                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -332,6 +426,7 @@ export default function CategoryWorkflowPage() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

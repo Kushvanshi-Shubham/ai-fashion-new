@@ -33,9 +33,10 @@ export function processCategoryDefinitions(): CategoryHierarchy {
   const subDepartments: Record<string, Set<string>> = {};
   const categories: Record<string, Record<string, CategoryOption[]>> = {};
 
-  Object.entries(CATEGORY_DEFINITIONS).forEach(([key, categoryData]) => {
+  CATEGORY_DEFINITIONS.forEach((categoryData) => {
     const department = categoryData.department;
     const subDepartment = categoryData.subDepartment;
+    const categoryId = categoryData.id;
     
     // Add department
     departments.add(department);
@@ -64,9 +65,9 @@ export function processCategoryDefinitions(): CategoryHierarchy {
     }).length;
 
     const categoryOption: CategoryOption = {
-      id: key,
-      code: key,
-      name: key.replace(/_/g, ' ').toUpperCase(),
+      id: categoryId,
+      code: categoryId,
+      name: categoryId.replace(/_/g, ' ').toUpperCase(),
       description: categoryData.description,
       totalAttributes,
       enabledAttributes,
@@ -271,8 +272,12 @@ export function validateCategoryPath(
 let cachedHierarchy: CategoryHierarchy | null = null;
 
 export function getCachedHierarchy(): CategoryHierarchy {
-  if (!cachedHierarchy) {
-    cachedHierarchy = processCategoryDefinitions();
-  }
+  // Temporarily disable cache to ensure we get fresh data
+  cachedHierarchy = processCategoryDefinitions();
   return cachedHierarchy;
+}
+
+// Clear the cache (useful for testing or when data changes)
+export function clearCategoryCache(): void {
+  cachedHierarchy = null;
 }

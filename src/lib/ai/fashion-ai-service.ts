@@ -1,33 +1,28 @@
 import OpenAI from "openai";
-import { CategoryFormData, AttributeField } from '@/types/fashion'
+import { CategoryFormData, AttributeField, ExtractionResult, AttributeDetail, CompletedExtractionResult, FailedExtractionResult } from '@/types/fashion'
 import { DiscoveredAttribute } from '@/types/discovery'
 import { discoveryManager } from '@/lib/services/discoveryManager'
+import { 
+  getCategoryIntelligence, 
+  getExtractionStrategy, 
+  getConfidenceBoost,
+  getConflictResolution
+} from './category-intelligence'
+import { SmartCache, CacheHelpers } from './smart-cache'
+import crypto from 'crypto'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const smartCache = new SmartCache();
 
 type OpenAIResp = {
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
   choices?: Array<{ message?: { content?: string } }>
 }
 
-interface ExtractionResult {
-  success: boolean;
-  attributes: Record<string, string | null>;
-  confidence: number;
-  processingTime: number;
-  tokenUsage: {
-    prompt: number;
-    completion: number;
-    total: number;
-  };
-  cost: number;
-  aiModel: string;
-  rawResponse?: string;
-  errors?: string[];
-  discoveries?: DiscoveredAttribute[] | undefined;
-}
+
 
 export class FashionAIService {
   // ------------------ MAIN EXTRACTION ------------------
@@ -36,6 +31,13 @@ export class FashionAIService {
     categoryData: CategoryFormData
   ): Promise<ExtractionResult> {
     return this.extractWithDiscovery(imageUrl, categoryData, false)
+  }
+
+  // ------------------ UTILITY METHODS ------------------
+  private static generateImageHash(imageUrl: string, category?: string): string {
+    return crypto.createHash('sha256')
+      .update(`${imageUrl}-${category || 'default'}`)
+      .digest('hex');
   }
 
   // ------------------ DISCOVERY EXTRACTION ------------------
@@ -51,10 +53,29 @@ export class FashionAIService {
         `🧠 Starting AI extraction for category: ${categoryData.categoryName}`
       );
 
-      // Build smart prompt with discovery mode
-      const prompt = discoveryEnabled 
-        ? this.buildDiscoveryPrompt(categoryData)
-        : this.buildSmartPrompt(categoryData);
+      // Generate cache keys
+      const imageHash = FashionAIService.generateImageHash(imageUrl, categoryData.categoryName);
+      const resultCacheKey = CacheHelpers.getResultKey(imageHash, categoryData.categoryId);
+      const promptCacheKey = CacheHelpers.getPromptKey(categoryData.categoryId, categoryData.fields.length);
+
+      // Try to get cached result first
+      const cachedResult = await smartCache.getResult(resultCacheKey);
+      if (cachedResult) {
+        console.log(`✅ Cache hit for ${categoryData.categoryName}`);
+        return cachedResult;
+      }
+
+      // Build smart prompt with discovery mode (with caching)
+      let prompt = smartCache.getPrompt(promptCacheKey);
+      if (!prompt) {
+        prompt = discoveryEnabled 
+          ? this.buildDiscoveryPrompt(categoryData)
+          : this.buildSmartPrompt(categoryData);
+        smartCache.cachePrompt(promptCacheKey, prompt);
+        console.log(`📝 Generated and cached ${discoveryEnabled ? 'discovery' : 'standard'} prompt`);
+      } else {
+        console.log(`📝 Using cached prompt for ${categoryData.categoryName}`);
+      }
       console.log(
         `📝 Generated ${discoveryEnabled ? 'discovery' : 'standard'} prompt for ${categoryData.enabledAttributes} attributes`
       );
@@ -130,58 +151,104 @@ export class FashionAIService {
       const confidencePercent = Math.round(Math.max(0, Math.min(100, (parsedResult.confidence ?? 0) * 100)))
       console.log(`🎯 Overall confidence: ${confidencePercent}%`);
 
-      return {
-        success: true,
-        attributes: parsedResult.attributes,
+      // Transform attributes to AttributeDetail format
+      const transformedAttributes: Record<string, AttributeDetail> = {};
+      for (const [key, value] of Object.entries(parsedResult.attributes)) {
+        transformedAttributes[key] = {
+          value: value,
+          confidence: confidencePercent,
+          reasoning: `Extracted via AI vision analysis`,
+          fieldLabel: key,
+          isValid: value !== null && value !== ''
+        };
+      }
+
+      const result: CompletedExtractionResult = {
+        id: `extraction-${Date.now()}`,
+        fileName: `image-${Date.now()}.jpg`, // Will be replaced by actual filename
+        createdAt: new Date().toISOString(),
+        status: 'completed',
+        attributes: transformedAttributes,
         confidence: confidencePercent,
+        tokensUsed: typeof totalTokens === 'number' ? Math.max(0, Math.floor(totalTokens)) : 0,
         processingTime: Math.max(0, Math.floor(processingTime)),
-        tokenUsage: {
-          prompt: typeof promptTokens === 'number' ? Math.max(0, Math.floor(promptTokens)) : 0,
-          completion: typeof completionTokens === 'number' ? Math.max(0, Math.floor(completionTokens)) : 0,
-          total: typeof totalTokens === 'number' ? Math.max(0, Math.floor(totalTokens)) : 0,
-        },
-        cost,
-        aiModel: "gpt-4-vision-preview",
-        rawResponse: aiResponse,
-        errors: parsedResult.errors,
-        discoveries: discoveries.length > 0 ? discoveries : undefined,
+        fromCache: false
       };
+
+      // Cache the successful result
+      await smartCache.cacheResult(resultCacheKey, result);
+      
+      return result;
     } catch (error) {
       console.error("❌ AI extraction failed:", error);
 
-      return {
-        success: false,
-        attributes: {},
-        confidence: 0,
-        processingTime: Math.max(0, Math.floor(Date.now() - startTime)),
-        tokenUsage: { prompt: 0, completion: 0, total: 0 },
-        cost: 0,
-        aiModel: "gpt-4-vision-preview",
-        errors: [error instanceof Error ? error.message : "Unknown error"],
+      const errorResult: FailedExtractionResult = {
+        id: `extraction-${Date.now()}`,
+        fileName: `image-${Date.now()}.jpg`, // Will be replaced by actual filename
+        createdAt: new Date().toISOString(),
+        status: 'failed',
+        error: error instanceof Error ? error.message : "Unknown error",
+        fromCache: false
       };
+      
+      return errorResult;
     }
+  }
+
+  // ------------------ FIELD PRIORITIZATION ------------------
+  private static prioritizeFields(fields: AttributeField[], intelligence: { primaryFocus?: string[] } | null): AttributeField[] {
+    if (!intelligence?.primaryFocus) {
+      return fields.sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    // Separate high priority and normal priority fields
+    const primaryFocus = intelligence.primaryFocus || [];
+    const highPriority = fields.filter(field => primaryFocus.includes(field.key));
+    const normalPriority = fields.filter(field => !primaryFocus.includes(field.key));
+
+    // Sort each group alphabetically and combine
+    return [
+      ...highPriority.sort((a, b) => a.label.localeCompare(b.label)),
+      ...normalPriority.sort((a, b) => a.label.localeCompare(b.label))
+    ];
   }
 
   // ------------------ PROMPT BUILDER ------------------
   private static buildSmartPrompt(categoryData: CategoryFormData): string {
-    const { categoryName, department, subDepartment, fields } = categoryData;
+    const { categoryName, categoryCode, department, subDepartment, fields } = categoryData;
 
-    const attributeInstructions = fields
-  .map((field: AttributeField) => {
+    // Get category-specific intelligence
+    const intelligence = getCategoryIntelligence(categoryCode || categoryName);
+    const strategy = getExtractionStrategy(categoryCode || categoryName);
+
+    // Build enhanced attribute instructions with category intelligence
+    const prioritizedFields = this.prioritizeFields(fields, intelligence);
+    const attributeInstructions = prioritizedFields
+      .map((field: AttributeField) => {
+        const conflictResolution = getConflictResolution(categoryCode || categoryName, field.key);
+        const confidenceBoost = getConfidenceBoost(categoryCode || categoryName, field.key);
+        
         let instruction = `"${field.key}": {
   "label": "${field.label}",
-  "type": "${field.type}"`;
+  "type": "${field.type}",
+  "priority": ${intelligence?.primaryFocus.includes(field.key) ? '"HIGH"' : '"NORMAL"'},
+  "confidence_boost": ${confidenceBoost}`;
 
-          if (field.options && field.options.length > 0) {
+        if (field.options && field.options.length > 0) {
           const optionsList = field.options
             .map((opt: { shortForm: string; fullForm: string }) => `"${opt.shortForm}" (${opt.fullForm})`)
             .join(", ");
           instruction += `,
   "options": [${optionsList}],
-  "instruction": "Return exact shortForm value from options, or null if not visible"`;
+  "instruction": "Return exact shortForm value from options, or null if confidence < ${strategy.confidenceThresholds.auto_retry}%"`;
         } else {
           instruction += `,
-  "instruction": "Describe what you see, or null if not visible"`;
+  "instruction": "Describe what you see, or null if not clearly visible"`;
+        }
+
+        if (conflictResolution.length > 0) {
+          instruction += `,
+  "resolution_hints": [${conflictResolution.map(hint => `"${hint}"`).join(', ')}]`;
         }
 
         instruction += `
@@ -190,29 +257,55 @@ export class FashionAIService {
       })
       .join(",\n\n");
 
-    return `You are analyzing a ${department} ${subDepartment} garment: "${categoryName}".
+    // Build enhanced prompt with category intelligence
+    const visualHints = intelligence?.visualHints || 'Focus on main garment characteristics and ignore background elements.';
+    const analysisOrder = strategy.analysisOrder.map(step => `• ${step.replace(/_/g, ' ')}`).join('\n');
+    const focusAreas = strategy.focusAreas.map(area => `• ${area.replace(/_/g, ' ')}`).join('\n');
+    
+    return `You are a professional fashion expert analyzing a ${department} ${subDepartment} garment: "${categoryName}".
 
-EXTRACT THESE ATTRIBUTES:
+CATEGORY-SPECIFIC GUIDANCE:
+${visualHints}
+
+VISUAL ANALYSIS STRATEGY:
+${analysisOrder}
+
+FOCUS AREAS:
+${focusAreas}
+
+ATTRIBUTES TO EXTRACT:
 {
 ${attributeInstructions}
 }
 
-CRITICAL RULES:
-1. Return ONLY the exact shortForm values from the provided options
-2. Use null for attributes you cannot clearly determine
-3. Focus on the main/dominant characteristics of the garment
-4. For colors, identify the PRIMARY garment color (not accents/prints)
-5. Be conservative - accuracy over completeness
+CRITICAL EXTRACTION RULES:
+1. Return ONLY exact shortForm values from provided options
+2. Use null for attributes with confidence < ${strategy.confidenceThresholds.auto_retry}%
+3. Focus on DOMINANT characteristics (main color, primary pattern)
+4. HIGH priority attributes require extra attention and accuracy
+5. Apply confidence boost multipliers for category-specific attributes
+6. Follow resolution hints for conflicting visual information
+
+CONFIDENCE THRESHOLDS:
+• Auto-accept: ≥${strategy.confidenceThresholds.auto_accept}%
+• Flag for review: ${strategy.confidenceThresholds.flag_review}-${strategy.confidenceThresholds.auto_accept-1}%
+• Auto-retry: <${strategy.confidenceThresholds.auto_retry}%
 
 RESPONSE FORMAT (JSON only, no markdown):
 {
-  "color_main": "shortForm_value_or_null",
-  "neck": "shortForm_value_or_null",
-  "sleeves_main_style": "shortForm_value_or_null"
-  // ... etc for all attributes
+  "attributes": {
+    "attribute_key": {
+      "value": "shortForm_value_or_null",
+      "confidence": 85,
+      "reasoning": "brief_visual_evidence"
+    }
+  },
+  "overall_confidence": 78,
+  "category_match": true,
+  "visual_quality": "good|fair|poor"
 }
 
-Analyze the image now and respond with clean JSON:`;
+Analyze the image systematically and respond with clean JSON:`;
   }
 
   // ------------------ RESPONSE PARSER ------------------

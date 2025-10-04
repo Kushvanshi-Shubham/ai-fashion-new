@@ -20,10 +20,13 @@ const extractionLimiter = rateLimit({
 })
 
 export async function POST(request: NextRequest) {
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Extract API] POST request received');
-    }  try {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Extract API] POST request received');
+  }
+  
+  try {
     let rateLimitInfo;
     // Apply rate limiting
     try {

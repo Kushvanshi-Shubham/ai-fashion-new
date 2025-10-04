@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { CheckCircle, AlertTriangle, Info, ArrowUpDown } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Info, ArrowUpDown, ArrowRight, ChevronDown } from 'lucide-react';
 import { CategoryFormData } from '@/types/fashion';
+import { Button } from '@/components/ui/button';
 
 interface CategoryAttributeTableProps {
   category: CategoryFormData | null;
   className?: string;
   showDescription?: boolean;
   showOnlyExtractable?: boolean;
+  onNext?: () => void;
+  showNextButton?: boolean;
 }
 
 type SortField = 'label' | 'type' | 'required' | 'aiWeight';
@@ -18,7 +21,9 @@ export default function CategoryAttributeTable({
   category,
   className = '',
   showDescription = true,
-  showOnlyExtractable = false
+  showOnlyExtractable = false,
+  onNext,
+  showNextButton = false
 }: CategoryAttributeTableProps) {
   const [sortField, setSortField] = useState<SortField>('label');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -124,72 +129,93 @@ export default function CategoryAttributeTable({
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Header with Category Info */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-100 dark:from-blue-950/60 dark:to-indigo-950/60 border-2 border-blue-300 dark:border-blue-600 rounded-xl p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">{category.categoryName}</h3>
-            <p className="text-sm text-gray-600">
-              {category.department} → {category.subDepartment}
+            <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100">🔸 {category.categoryName}</h3>
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+              📍 {category.department} → {category.subDepartment}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-blue-600">{category.extractableAttributes}</div>
-            <div className="text-sm text-gray-500">Extractable Attributes</div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{category.extractableAttributes}</div>
+              <div className="text-sm font-semibold text-blue-800 dark:text-blue-200">🤖 Extractable Attributes</div>
+            </div>
+            {/* Next Button */}
+            {showNextButton && onNext && (
+              <Button 
+                onClick={onNext}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                size="default"
+              >
+                <span>🚀 Continue to Upload</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="text-lg font-semibold text-gray-900">{stats.total}</div>
-            <div className="text-xs text-gray-500">Total Fields</div>
+          <div className="bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 rounded-lg p-3 shadow-sm">
+            <div className="text-lg font-bold text-blue-900 dark:text-blue-100">📊 {stats.total}</div>
+            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">Total Fields</div>
           </div>
-          <div className="bg-green-50 rounded-lg p-3">
-            <div className="text-lg font-semibold text-green-700">{stats.extractable}</div>
-            <div className="text-xs text-gray-500">AI Extractable</div>
+          <div className="bg-cyan-100 dark:bg-cyan-900/50 border border-cyan-300 dark:border-cyan-700 rounded-lg p-3 shadow-sm">
+            <div className="text-lg font-bold text-cyan-900 dark:text-cyan-100">🤖 {stats.extractable}</div>
+            <div className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">AI Extractable</div>
           </div>
-          <div className="bg-amber-50 rounded-lg p-3">
-            <div className="text-lg font-semibold text-amber-700">{stats.required}</div>
-            <div className="text-xs text-gray-500">Required</div>
+          <div className="bg-indigo-100 dark:bg-indigo-900/50 border border-indigo-300 dark:border-indigo-700 rounded-lg p-3 shadow-sm">
+            <div className="text-lg font-bold text-indigo-900 dark:text-indigo-100">⚠️ {stats.required}</div>
+            <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Required</div>
           </div>
-          <div className="bg-blue-50 rounded-lg p-3">
-            <div className="text-lg font-semibold text-blue-700">{attributeTypes.length}</div>
-            <div className="text-xs text-gray-500">Types</div>
+          <div className="bg-sky-100 dark:bg-sky-900/50 border border-sky-300 dark:border-sky-700 rounded-lg p-3 shadow-sm">
+            <div className="text-lg font-bold text-sky-900 dark:text-sky-100">🏷️ {attributeTypes.length}</div>
+            <div className="text-xs font-semibold text-sky-700 dark:text-sky-300">Types</div>
           </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 dark:from-blue-950/60 dark:via-indigo-950/60 dark:to-cyan-950/60 border-2 border-blue-300 dark:border-blue-600 rounded-xl p-6 shadow-xl">
+        <div className="flex flex-col sm:flex-row gap-6">
           {/* Search */}
           <div className="flex-1">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search attributes..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="🔍 Search attributes..."
+                className="w-full px-6 py-4 border-2 border-blue-400 dark:border-blue-500 rounded-xl focus:ring-4 focus:ring-blue-500/40 focus:border-blue-600 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/70 dark:to-indigo-900/70 text-blue-900 dark:text-blue-50 font-semibold text-lg placeholder-blue-700 dark:placeholder-blue-300 shadow-lg hover:shadow-xl hover:from-blue-200 hover:to-indigo-200 dark:hover:from-blue-800/80 dark:hover:to-indigo-800/80 transition-all"
+              />
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-blue-500 dark:text-blue-400">
+                🔍
+              </div>
+            </div>
           </div>
 
           {/* Filter by Type */}
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Types</option>
-            {attributeTypes.map(type => (
-              <option key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-6 py-4 border-2 border-green-300 dark:border-green-600 rounded-xl focus:ring-4 focus:ring-green-500/30 focus:border-green-500 appearance-none bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 text-green-900 dark:text-green-100 font-semibold text-lg shadow-lg hover:shadow-xl transition-all cursor-pointer min-w-[160px]"
+            >
+              <option value="all" className="font-semibold">📊 All Types</option>
+              {attributeTypes.map(type => (
+                <option key={type} value={type} className="font-semibold">
+                  💼 {type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-green-600 dark:text-green-400 pointer-events-none" />
+          </div>
 
           {/* Results count */}
-          <div className="flex items-center text-sm text-gray-500 whitespace-nowrap">
-            {filteredAndSortedAttributes.length} of {stats.total} attributes
+          <div className="flex items-center text-lg font-bold text-blue-800 dark:text-blue-200 whitespace-nowrap bg-blue-200 dark:bg-blue-800/50 px-4 py-2 rounded-xl shadow-md border border-blue-300 dark:border-blue-600">
+            📈 {filteredAndSortedAttributes.length} of {stats.total} attributes
           </div>
         </div>
       </div>
@@ -330,6 +356,8 @@ export default function CategoryAttributeTable({
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

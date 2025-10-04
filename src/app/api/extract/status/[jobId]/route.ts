@@ -11,10 +11,18 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Job ID is required' }, { status: 400 });
   }
 
+  console.log(`[Status API] Looking for job: ${jobId}`);
   const job = getJob(jobId);
+  console.log(`[Status API] Job found:`, job ? `Status: ${job.status}` : 'Not found');
 
   if (!job) {
-    return NextResponse.json({ success: false, error: 'Job not found' }, { status: 404 });
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Job not found', 
+      jobId,
+      debug: 'Job may have been processed quickly or failed due to missing environment variables (OPENAI_API_KEY, DATABASE_URL)',
+      help: 'Check server logs for processing details, or verify environment configuration'
+    }, { status: 404 });
   }
 
   // Do not send sensitive data back to the client

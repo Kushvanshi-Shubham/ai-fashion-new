@@ -19,7 +19,7 @@ const limiter = rateLimit({
   blockDuration: 120 * 1000 // 2 minutes
 })
 
-export async function GET(this: unknown, request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
   try {
     // Apply rate limiting

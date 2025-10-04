@@ -21,6 +21,9 @@ export class ExtractionService {
    */
   static async extract(file: File, category: CategoryFormData): Promise<{ jobId: string }> {
     try {
+      console.log('[ExtractionService] Sending categoryId:', category.categoryId, 'Type:', typeof category.categoryId)
+      console.log('[ExtractionService] Full category:', category)
+      
       const formData = new FormData()
       formData.append('file', file)
       formData.append('categoryId', category.categoryId)
