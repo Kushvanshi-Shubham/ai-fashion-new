@@ -208,3 +208,40 @@ enum ExtractionStatus {
   FAILED
   CACHED
 }
+
+// Store completed extraction results for UI display
+model ExtractionResult {
+  id              String @id @default(uuid())
+  fileName        String
+  originalFileName String?
+  status          String @default("completed")
+  categoryId      String
+  categoryName    String?
+  
+  // Extracted attributes as JSON
+  attributes      Json
+  
+  // AI metadata
+  confidence      Int?
+  tokensUsed      Int?
+  processingTime  Int?
+  modelUsed       String?
+  costUsd         Decimal? @db.Decimal(10,6)
+  fromCache       Boolean @default(false)
+  
+  // Error handling
+  error           String?
+  jobId           String?
+  
+  // Discovery data
+  discoveries     Json?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@index([jobId])
+  @@map("extraction_results")
+}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { CategoryFormData, ExtractionResult, UploadedImage } from '@/types/fashion';
-import { ExtractionService } from '@/lib/services/extraction-service';
+import { DirectExtractionService } from '@/lib/services/direct-extraction-service';
 
 export interface UseCategoryWorkflowOptions {
   onCategoryChange?: (category: CategoryFormData | null) => void;
@@ -59,7 +59,7 @@ export const useCategoryWorkflow = (options: UseCategoryWorkflowOptions = {}) =>
     return newImages;
   }, []);
 
-  // Start extraction for specific image
+  // Start extraction for specific image - DIRECT APPROACH (like old project)
   const startExtraction = useCallback(async (imageId: string) => {
     const image = state.uploadedImages.find(img => img.id === imageId);
     const category = state.selectedCategory;
@@ -71,48 +71,25 @@ export const useCategoryWorkflow = (options: UseCategoryWorkflowOptions = {}) =>
       return;
     }
 
+    console.log('[CategoryWorkflow] Starting direct extraction for:', image.file.name);
+
     // Update image status to processing
     setState(prev => ({
       ...prev,
       uploadedImages: prev.uploadedImages.map(img =>
-        img.id === imageId ? { ...img, status: 'processing', progress: 10 } : img
+        img.id === imageId ? { ...img, status: 'processing', progress: 50 } : img
       ),
       isProcessing: true,
       error: null
     }));
 
     try {
-      // Start extraction job
-      const { jobId } = await ExtractionService.extract(image.file, category);
+      // DIRECT extraction (no polling, immediate result)
+      const result = await DirectExtractionService.extractDirect(image.file, category);
 
-      // Update job status
-      setState(prev => ({
-        ...prev,
-        jobStatuses: { ...prev.jobStatuses, [imageId]: jobId }
-      }));
+      console.log('[CategoryWorkflow] Extraction completed:', result.id);
 
-      // Poll for job completion
-      const result = await ExtractionService.pollJobStatus(
-        jobId,
-        (status) => {
-          // Update progress based on job status
-          let progress = 10;
-          switch (status) {
-            case 'pending': progress = 20; break;
-            case 'processing': progress = 50; break;
-            case 'completed': progress = 100; break;
-          }
-
-          setState(prev => ({
-            ...prev,
-            uploadedImages: prev.uploadedImages.map(img =>
-              img.id === imageId ? { ...img, progress } : img
-            )
-          }));
-        }
-      );
-
-      // Update with completed result
+      // Update with completed result immediately
       setState(prev => ({
         ...prev,
         uploadedImages: prev.uploadedImages.map(img =>
@@ -130,6 +107,7 @@ export const useCategoryWorkflow = (options: UseCategoryWorkflowOptions = {}) =>
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Extraction failed';
+      console.error('[CategoryWorkflow] Extraction failed:', errorMessage);
       
       setState(prev => ({
         ...prev,
@@ -148,7 +126,7 @@ export const useCategoryWorkflow = (options: UseCategoryWorkflowOptions = {}) =>
     }
   }, [state.uploadedImages, state.selectedCategory, onImageProcessed, onError]);
 
-  // Start batch extraction
+  // Start batch extraction - DIRECT APPROACH (like old project)
   const startBatchExtraction = useCallback(async () => {
     const pendingImages = state.uploadedImages.filter(img => img.status === 'pending');
     
@@ -162,21 +140,24 @@ export const useCategoryWorkflow = (options: UseCategoryWorkflowOptions = {}) =>
       return;
     }
 
+    console.log('[CategoryWorkflow] Starting batch extraction for', pendingImages.length, 'images');
+
     setState(prev => ({ ...prev, isProcessing: true, error: null }));
 
-    // Process images in parallel (limit concurrency)
-    const concurrentLimit = 3;
-    const chunks: UploadedImage[][] = [];
-    
-    for (let i = 0; i < pendingImages.length; i += concurrentLimit) {
-      chunks.push(pendingImages.slice(i, i + concurrentLimit));
+    // Process images sequentially to avoid overwhelming the API (like old project)
+    for (const image of pendingImages) {
+      try {
+        await startExtraction(image.id);
+        // Small delay between extractions to be gentle on the API
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error('[CategoryWorkflow] Batch extraction error for image:', image.file.name, error);
+        // Continue with next image even if one fails
+      }
     }
 
-    for (const chunk of chunks) {
-      await Promise.allSettled(
-        chunk.map(image => startExtraction(image.id))
-      );
-    }
+    setState(prev => ({ ...prev, isProcessing: false }));
+    console.log('[CategoryWorkflow] Batch extraction completed');
   }, [state.uploadedImages, state.selectedCategory, startExtraction]);
 
   // Retry failed extraction

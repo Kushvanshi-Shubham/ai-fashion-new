@@ -17,7 +17,7 @@ const PRICING: Record<string, ModelPricing> = {
 export function resolveModel(): string {
   const envModel = process.env.AI_MODEL?.trim()
   if (envModel && PRICING[envModel]) return envModel
-  return 'gpt-4-vision-preview'
+  return 'gpt-4o' // Updated to current working model
 }
 
 export function estimateCost(params: {

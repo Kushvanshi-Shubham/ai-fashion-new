@@ -22,6 +22,7 @@ import CategorySelector from '@/components/CategorySelector';
 import CategoryAttributeTable from '@/components/CategoryAttributeTable';
 import ImageUpload from '@/components/ImageUpload';
 import ExtractionResults from '@/components/ExtractionResults';
+import { ExtractionResultsTable } from '@/components/ExtractionResultsTable';
 import { useCategoryWorkflow } from '@/hooks/useCategoryWorkflow';
 import { CategoryFormData } from '@/types/fashion';
 import { getCategoryStats } from '@/lib/category-processor';
@@ -392,6 +393,27 @@ export default function CategoryWorkflowPage() {
                             )}
                           </div>
                         </div>
+                      )}
+
+                      {/* Inline Results Display - Show results as they come in */}
+                      {workflow.results.length > 0 && (
+                        <Card className="mt-6">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              ✅ Live Extraction Results ({workflow.results.length})
+                            </CardTitle>
+                            <CardDescription>
+                              Results appear here automatically as extraction completes - same page, no redirects!
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <ExtractionResultsTable 
+                              results={workflow.results}
+                              category={workflow.selectedCategory}
+                            />
+                          </CardContent>
+                        </Card>
                       )}
                     </div>
                   )}

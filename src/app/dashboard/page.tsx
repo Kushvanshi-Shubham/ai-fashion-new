@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { 
@@ -20,50 +20,31 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 
-// Preserve the original business logic for dashboard stats
-const summary = [
-  { 
-    label: 'Total Extractions', 
-    value: '1,247',
-    description: '+12% from last month',
-    trend: 'up',
-    icon: Database,
-    color: 'text-blue-600'
-  },
-  { 
-    label: 'Success Rate', 
-    value: '94.7%',
-    description: '+2.1% from last month',
-    trend: 'up',
-    icon: TrendingUp,
-    color: 'text-green-600'
-  },
-  { 
-    label: 'Categories', 
-    value: '283',
-    description: '+15 new categories',
-    trend: 'up',
-    icon: Bot,
-    color: 'text-purple-600'
-  },
-  { 
-    label: 'Avg. Processing', 
-    value: '2.4s',
-    description: '-0.3s improvement',
-    trend: 'up',
-    icon: Clock,
-    color: 'text-orange-600'
-  }
-]
+interface DashboardStats {
+  totalExtractions: number
+  completedExtractions: number
+  successRate: number
+  avgConfidence: number
+  avgProcessingTime: number
+  totalTokens: number
+}
 
-// Preserve the original business logic for recent activity
-const recentActivity = [
-  { id: 1, name: 'summer_dress_1.jpg', status: 'completed', time: '1 min ago', confidence: 96 },
-  { id: 2, name: 'winter_coat_2.jpg', status: 'completed', time: '2 min ago', confidence: 94 },
-  { id: 3, name: 'casual_shirt_3.jpg', status: 'processing', time: '3 min ago', confidence: null },
-  { id: 4, name: 'formal_pants_4.jpg', status: 'completed', time: '4 min ago', confidence: 91 },
-  { id: 5, name: 'sports_shoes_5.jpg', status: 'completed', time: '5 min ago', confidence: 98 }
-]
+interface RecentExtraction {
+  id: string
+  fileName: string
+  status: string
+  confidence?: number
+  createdAt: string
+}
+
+interface ApiResponse {
+  success: boolean
+  data?: {
+    results: RecentExtraction[]
+    stats: DashboardStats
+  }
+  error?: string
+}
 
 const quickActions = [
   {
@@ -105,6 +86,73 @@ const itemVariants = {
 }
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalExtractions: 0,
+    completedExtractions: 0,
+    successRate: 0,
+    avgConfidence: 0,
+    avgProcessingTime: 0,
+    totalTokens: 0
+  })
+  const [recentActivity, setRecentActivity] = useState<RecentExtraction[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/results?limit=5&sortBy=createdAt&sortOrder=desc')
+      const data: ApiResponse = await response.json()
+
+      if (data.success && data.data) {
+        setStats(data.data.stats)
+        setRecentActivity(data.data.results)
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const summary = [
+    { 
+      label: 'Total Extractions', 
+      value: loading ? '...' : stats.totalExtractions.toString(),
+      description: 'All time extractions',
+      trend: 'up',
+      icon: Database,
+      color: 'text-blue-600'
+    },
+    { 
+      label: 'Success Rate', 
+      value: loading ? '...' : `${Math.round(stats.successRate)}%`,
+      description: `${stats.completedExtractions} successful`,
+      trend: 'up',
+      icon: TrendingUp,
+      color: 'text-green-600'
+    },
+    { 
+      label: 'Avg Confidence', 
+      value: loading ? '...' : `${stats.avgConfidence}%`,
+      description: 'AI extraction confidence',
+      trend: 'up',
+      icon: Bot,
+      color: 'text-purple-600'
+    },
+    { 
+      label: 'Avg. Processing', 
+      value: loading ? '...' : `${Math.round(stats.avgProcessingTime / 1000)}s`,
+      description: `${stats.totalTokens.toLocaleString()} tokens used`,
+      trend: 'up',
+      icon: Clock,
+      color: 'text-orange-600'
+    }
+  ]
+
   return (
     <motion.div 
       className="space-y-8"
@@ -160,40 +208,69 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {recentActivity.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                      <Camera className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <div className="flex items-center space-x-2">
-                        <Badge 
-                          variant={item.status === 'completed' ? 'default' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {item.status}
-                        </Badge>
-                        {item.confidence && (
-                          <span className="text-xs text-muted-foreground">
-                            {item.confidence}% confidence
-                          </span>
-                        )}
+              {loading ? (
+                // Loading skeleton
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={`loading-${index}`}
+                    className="flex items-center justify-between rounded-lg border p-3 animate-pulse"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="h-8 w-8 rounded-full bg-muted" />
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-muted rounded" />
+                        <div className="h-3 w-20 bg-muted rounded" />
                       </div>
                     </div>
+                    <div className="h-3 w-16 bg-muted rounded" />
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">{item.time}</p>
-                    {item.status === 'processing' && (
-                      <Progress value={65} className="mt-1 w-16" />
-                    )}
+                ))
+              ) : recentActivity.length > 0 ? (
+                recentActivity.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                        <Camera className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">{item.fileName}</p>
+                        <div className="flex items-center space-x-2">
+                          <Badge 
+                            variant={item.status === 'completed' ? 'default' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {item.status}
+                          </Badge>
+                          {item.confidence && (
+                            <span className="text-xs text-muted-foreground">
+                              {item.confidence}% confidence
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </p>
+                      {item.status === 'processing' && (
+                        <Progress value={65} className="mt-1 w-16" />
+                      )}
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No recent extractions</p>
+                  <Button asChild className="mt-2" size="sm">
+                    <Link href="/category-workflow">Start First Extraction</Link>
+                  </Button>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </motion.div>

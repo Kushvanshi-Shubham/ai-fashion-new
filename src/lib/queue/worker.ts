@@ -1,69 +1,16 @@
 import {
   getNextJob,
-  completeJob,
   failJob,
 } from './job-manager';
-import { FashionAIService } from '../ai/fashion-ai-service';
-import { prisma } from '../database';
 import { ExtractionJob } from '@/types/job';
-import { isCompletedExtraction } from '@/types/fashion';
 
 let isProcessing = false;
 
 async function processJob(job: ExtractionJob) {
-  console.log(`[Worker] Processing job: ${job.id}`);
-  try {
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY not configured. Please set up your environment variables.');
-    }
-
-    // Convert buffer to base64 URL for the AI service
-    const base64Image = `data:${job.data.imageType};base64,${job.data.imageBuffer.toString('base64')}`;
-    
-    // Use discovery mode for enhanced extraction
-    const extractionResult = await FashionAIService.extractWithDiscovery(
-      base64Image,
-      job.data.category,
-      true // Enable discovery mode
-    );
-
-    if (isCompletedExtraction(extractionResult)) {
-      const tokensUsed = extractionResult.tokensUsed;
-
-      const result = {
-        status: 'completed' as const,
-        extraction: {
-          attributes: extractionResult.attributes,
-          confidence: extractionResult.confidence,
-          tokensUsed: tokensUsed,
-          model: 'gpt-4-vision-preview', // Default model name
-          cost: 0, // Cost calculation would need to be added
-          fromCache: extractionResult.fromCache || false,
-        },
-        discoveries: [], // Discoveries would need to be extracted from the result
-        costUsd: 0, // Cost calculation would need to be added
-        tokensUsed: tokensUsed,
-      };
-      
-      completeJob(job.id, result);
-      console.log(`[Worker] Completed job: ${job.id} with ${result.discoveries?.length || 0} discoveries`);
-      
-      // Persist analytics
-      persistAnalytics(job, result, 'COMPLETED');
-    } else {
-      // Handle extraction failure (FailedExtractionResult)
-      const errorMsg = extractionResult.status === 'failed' ? extractionResult.error : 'Unknown extraction error';
-      failJob(job.id, errorMsg);
-      console.log(`[Worker] Failed job: ${job.id} - ${errorMsg}`);
-    }
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[Worker] Failed job: ${job.id}`, error);
-    failJob(job.id, errorMessage);
-    persistAnalytics(job, { costUsd: 0, tokensUsed: 0 }, 'FAILED', errorMessage);
-  }
+  console.log(`[Worker] Processing job: ${job.id} - TEMPORARILY DISABLED FOR NEW SERVICE MIGRATION`);
+  
+  // TODO: Update worker to use new ExtractionService after testing direct API
+  failJob(job.id, 'Worker temporarily disabled during service migration');
 }
 
 export async function startWorker() {
@@ -91,6 +38,46 @@ export function triggerWorker() {
     // Non-blocking trigger
     console.log('[Worker] Trigger called, starting worker...');
     setTimeout(startWorker, 0);
+}
+
+// TODO: Re-implement with new service
+/*
+// 🆕 Save extraction result to database for permanent UI display
+async function saveExtractionResult(job: ExtractionJob, extractionResult: CompletedExtractionResult, tokensUsed: number) {
+    if (!process.env.DATABASE_URL) return;
+
+    try {
+        // Generate unique filename if not provided
+        const originalFileName = `extraction-${Date.now()}.jpg`;
+        const fileName = originalFileName;
+
+        // Transform attributes to the format expected by ExtractionResults component
+        const transformedAttributes = extractionResult.attributes || {};
+
+        const extractionRecord = await prisma.extractionResult.create({
+            data: {
+                id: `result_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+                fileName: fileName,
+                originalFileName: originalFileName,
+                status: 'completed',
+                categoryId: job.data.category.categoryId,
+                categoryName: job.data.category.categoryName || job.data.category.categoryId,
+                attributes: JSON.parse(JSON.stringify(transformedAttributes)), // Store as JSON
+                confidence: Math.round(extractionResult.confidence || 0),
+                tokensUsed: tokensUsed,
+                processingTime: Date.now() - job.createdAt.getTime(),
+                modelUsed: job.data.model || 'gpt-4o',
+                costUsd: 0, // Cost calculation can be added later
+                fromCache: extractionResult.fromCache || false,
+                jobId: job.id,
+                discoveries: {}, // Can be enhanced later for discovery mode
+            }
+        });
+
+        console.log(`[Worker] Saved extraction result to database: ${extractionRecord.id}`);
+    } catch (error) {
+        console.error('[Worker] Failed to save extraction result:', error);
+    }
 }
 
 async function persistAnalytics(job: ExtractionJob, result: { costUsd: number, tokensUsed: number }, status: 'COMPLETED' | 'FAILED', errorMessage?: string) {
@@ -138,3 +125,4 @@ async function persistAnalytics(job: ExtractionJob, result: { costUsd: number, t
         console.warn('[AnalyticsWorker] Failed to persist extraction event', err);
     }
 }
+*/

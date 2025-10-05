@@ -16,12 +16,24 @@ export async function GET(
   console.log(`[Status API] Job found:`, job ? `Status: ${job.status}` : 'Not found');
 
   if (!job) {
+    // Check for common configuration issues
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    const hasDatabase = !!process.env.DATABASE_URL;
+    
     return NextResponse.json({ 
       success: false, 
       error: 'Job not found', 
       jobId,
-      debug: 'Job may have been processed quickly or failed due to missing environment variables (OPENAI_API_KEY, DATABASE_URL)',
-      help: 'Check server logs for processing details, or verify environment configuration'
+      debug: {
+        message: 'Job may have been processed quickly, failed, or expired (jobs are kept for 10 minutes)',
+        environment: {
+          openai: hasOpenAI ? 'configured' : 'missing OPENAI_API_KEY',
+          database: hasDatabase ? 'configured' : 'missing DATABASE_URL'
+        }
+      },
+      help: !hasOpenAI || !hasDatabase 
+        ? 'Please configure your environment variables in .env.local file. See .env.example for template.' 
+        : 'Check server logs for processing details. Jobs expire after 10 minutes.'
     }, { status: 404 });
   }
 

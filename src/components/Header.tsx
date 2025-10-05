@@ -21,8 +21,12 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6" role="navigation" aria-label="Main navigation">
-            <Link href="/" className="nav-link" aria-label="Go to extraction page">
+            <Link href="/category-workflow" className="nav-link" aria-label="Go to extraction page">
               Extraction
+            </Link>
+            <Link href="/extractions" className="nav-link" aria-label="View extraction results">
+              <Database className="w-4 h-4" aria-hidden="true" />
+              Results
             </Link>
             <Link href="/analytics" className="nav-link" aria-label="View analytics dashboard">
               <BarChart3 className="w-4 h-4" aria-hidden="true" />
